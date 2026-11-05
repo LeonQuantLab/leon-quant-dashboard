@@ -123,7 +123,6 @@ def delete_strategy(strategy_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # 先删净值历史，再删策略本身
         cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (strategy_id,))
         cursor.execute("DELETE FROM dbo.strategies WHERE id = %s", (strategy_id,))
         conn.commit()
@@ -609,7 +608,6 @@ if "delete_strat_id" in st.query_params:
     del_id = int(st.query_params["delete_strat_id"])
     if delete_strategy(del_id):
         st.success("✅ 策略已成功删除！")
-        # 如果删的是当前展示的策略，重置 session_state
         if st.session_state.current_strategy_id == del_id:
             st.session_state.current_strategy_id = None
             st.session_state.current_strategy_name = None
@@ -882,11 +880,12 @@ elif nav_choice == "我的":
             else:
                 try:
                     conn = get_db_connection()
+                    # 👇 去掉了 EXISTS 条件，拉取所有策略
                     query_strats = """
                         SELECT s.id, s.name, u.username 
                         FROM dbo.strategies s
                         JOIN dbo.users u ON s.user_id = u.id
-                        WHERE s.user_id = %s AND EXISTS (SELECT 1 FROM dbo.nav_history WHERE strategy_id = s.id)
+                        WHERE s.user_id = %s
                     """
                     cursor = conn.cursor()
                     cursor.execute(query_strats, (st.session_state.user_id,))
@@ -903,6 +902,7 @@ elif nav_choice == "我的":
                             
                             df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
                             
+                            # 👇 处理有数据的策略
                             if len(df_nav) > 1:
                                 navs = df_nav['strategy_nav'].values
                                 days = len(df_nav)
@@ -924,12 +924,27 @@ elif nav_choice == "我的":
                                     "days": days,
                                     "spark": sparkline_data
                                 })
+                            # 👇 处理没数据（白板）的策略
+                            else:
+                                rank_data.append({
+                                    "id": s_id,
+                                    "name": s_name,
+                                    "author": s_author,
+                                    "gain": None,
+                                    "annualized": None,
+                                    "drawdown": None,
+                                    "days": 0,
+                                    "spark": []
+                                })
                         conn.close()
                         
                         if not rank_data:
                             st.info("暂无足够的数据生成报表。")
                         else:
-                            rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
+                            # 重新排序：有收益的按收益排，没收益的排最后
+                            def sort_key(x):
+                                return x['gain'] if x['gain'] is not None else -99999
+                            rank_data = sorted(rank_data, key=sort_key, reverse=True)
                             json_data = json.dumps(rank_data)
                             
                             html_code = f"""
@@ -950,6 +965,7 @@ elif nav_choice == "我的":
                                     .sys-author {{ color: #a0a0a0; font-size: 12px; }}
                                     .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
                                     .arrow.active {{ color: #00ffcc; }}
+                                    .empty-data {{ color: #666 !important; }}
                                 </style>
                             </head>
                             <body>
@@ -1007,11 +1023,19 @@ elif nav_choice == "我的":
                                         tbody.innerHTML = "";
                                         
                                         data.forEach(item => {{
-                                            let gainClass = item.gain >= 0 ? "positive" : "negative";
-                                            let annualClass = item.annualized >= 0 ? "positive" : "negative";
+                                            let gainClass = (item.gain !== null && item.gain >= 0) ? "positive" : "negative";
+                                            let annualClass = (item.annualized !== null && item.annualized >= 0) ? "positive" : "negative";
                                             
-                                            let gainStr = item.gain > 0 ? "+" + item.gain.toFixed(2) + "%" : item.gain.toFixed(2) + "%";
-                                            let annualStr = item.annualized > 0 ? "+" + item.annualized.toFixed(2) + "%" : item.annualized.toFixed(2) + "%";
+                                            let gainStr = item.gain !== null ? (item.gain > 0 ? "+" : "") + item.gain.toFixed(2) + "%" : "-";
+                                            let annualStr = item.annualized !== null ? (item.annualized > 0 ? "+" : "") + item.annualized.toFixed(2) + "%" : "-";
+                                            let drawdownStr = item.drawdown !== null ? item.drawdown.toFixed(2) + "%" : "-";
+                                            let daysStr = item.days + " 天";
+                                            
+                                            // 如果没有数据，指标直接变灰
+                                            let textStyle = item.gain === null ? 'class="empty-data"' : '';
+                                            let gainTd = item.gain !== null ? `<td class="${gainClass}">${gainStr}</td>` : `<td class="empty-data">-</td>`;
+                                            let annualTd = item.annualized !== null ? `<td class="${annualClass}">${annualStr}</td>` : `<td class="empty-data">-</td>`;
+                                            let drawdownTd = item.drawdown !== null ? `<td class="negative">${drawdownStr}</td>` : `<td class="empty-data">-</td>`;
                                             
                                             let svgContent = generateSparkline(item.spark);
                                             
@@ -1023,10 +1047,10 @@ elif nav_choice == "我的":
                                                     </div>
                                                     <div class="sys-author">${{item.author}}</div>
                                                 </td>
-                                                <td class="${{gainClass}}">${{gainStr}}</td>
-                                                <td class="${{annualClass}}">${{annualStr}}</td>
-                                                <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
-                                                <td>${{item.days}} 天</td>
+                                                ${{gainTd}}
+                                                ${{annualTd}}
+                                                ${{drawdownTd}}
+                                                <td>${{daysStr}}</td>
                                                 <td>${{svgContent}}</td>
                                                 <td>
                                                     <a href="?delete_strat_id=${{item.id}}" target="_top" onclick="return confirm('确定要删除策略【${{item.name}}】及其所有数据吗？此操作不可恢复！');" style="color: #ff4b4b; text-decoration: underline; cursor: pointer; font-size: 13px;">删除</a>
@@ -1056,6 +1080,12 @@ elif nav_choice == "我的":
                                         data.sort((a, b) => {{
                                             let valA = a[key];
                                             let valB = b[key];
+                                            
+                                            // 处理空值（把它们排在最后）
+                                            if (valA === null && valB === null) return 0;
+                                            if (valA === null) return isAscending ? 1 : -1;
+                                            if (valB === null) return isAscending ? -1 : 1;
+                                            
                                             if (isNumeric) {{
                                                 return isAscending ? valA - valB : valB - valA;
                                             }} else {{
