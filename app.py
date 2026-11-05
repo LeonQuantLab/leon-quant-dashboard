@@ -87,12 +87,8 @@ def register_user(username, password):
             conn.close()
             return False, "该用户名已被注册，请换一个试试！"
 
+        # 👇 删除了自动插入默认策略的逻辑，注册后就是干干净净的
         cursor.execute("INSERT INTO dbo.users (username, password_hash) VALUES (%s, %s)", (username, pwd_hash))
-        conn.commit()
-        
-        cursor.execute("SELECT id FROM dbo.users WHERE username = %s", (username,))
-        user_id = cursor.fetchone()[0]
-        cursor.execute("INSERT INTO dbo.strategies (user_id, name, benchmark) VALUES (%s, %s, %s)", (user_id, f"{username}的默认策略", "SHSE.000300"))
         conn.commit()
         conn.close()
         return True, "注册成功！"
@@ -523,6 +519,11 @@ if st.session_state.auth_action == "login":
                 if strats:
                     st.session_state.current_strategy_id = strats[0][0]
                     st.session_state.current_strategy_name = strats[0][1]
+                else:
+                    # 如果没有策略，清空当前 ID
+                    st.session_state.current_strategy_id = None
+                    st.session_state.current_strategy_name = None
+                    
                 st.rerun()
             else:
                 st.error("用户名或密码错误！")
@@ -542,6 +543,8 @@ if st.session_state.auth_action == "login":
                     st.session_state.user_id = uid
                     st.session_state.auth_action = "none"
                     st.session_state.force_jump = True
+                    st.session_state.current_strategy_id = None
+                    st.session_state.current_strategy_name = None
                     
                     st.success(msg)
                     time.sleep(1)
@@ -801,7 +804,13 @@ elif nav_choice == "我的":
                 if new_strat_name:
                     if create_new_strategy(st.session_state.user_id, new_strat_name, BENCHMARKS[new_bench]):
                         st.session_state.current_strategy_name = new_strat_name
-                        st.success("创建成功！")
+                        # 重新获取以更新 ID
+                        user_strats = get_user_strategies(st.session_state.user_id)
+                        for s in user_strats:
+                            if s[1] == new_strat_name:
+                                st.session_state.current_strategy_id = s[0]
+                                break
+                        st.success("创建成功！已自动切换到该策略。")
                         time.sleep(1)
                         st.rerun()
             
@@ -809,239 +818,243 @@ elif nav_choice == "我的":
             st.markdown("### 📊 我的策略表现对比")
             st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
             
-            try:
-                conn = get_db_connection()
-                query_strats = """
-                    SELECT s.id, s.name, u.username 
-                    FROM dbo.strategies s
-                    JOIN dbo.users u ON s.user_id = u.id
-                    WHERE s.user_id = %s AND EXISTS (SELECT 1 FROM dbo.nav_history WHERE strategy_id = s.id)
-                """
-                cursor = conn.cursor()
-                cursor.execute(query_strats, (st.session_state.user_id,))
-                user_strats_data = cursor.fetchall()
-                
-                if not user_strats_data:
-                    st.info("您还没有添加任何净值数据，快去录入数据吧！")
-                else:
-                    rank_data = []
-                    for row in user_strats_data:
-                        s_id = row[0]
-                        s_name = row[1]
-                        s_author = row[2]
-                        
-                        df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
-                        
-                        if len(df_nav) > 1:
-                            navs = df_nav['strategy_nav'].values
-                            days = len(df_nav)
-                            gain = (navs[-1] / navs[0] - 1) * 100
-                            annualized = ((navs[-1] / navs[0]) ** (252 / days) - 1) * 100
-                            cum_max = np.maximum.accumulate(navs)
-                            drawdowns = (navs - cum_max) / cum_max
-                            max_drawdown = abs(drawdowns.min()) * 100
-                            
-                            sparkline_data = navs.tolist()
-                            
-                            rank_data.append({
-                                "id": s_id,
-                                "name": s_name,
-                                "author": s_author,
-                                "gain": round(gain, 2),
-                                "annualized": round(annualized, 2),
-                                "drawdown": round(max_drawdown, 2),
-                                "days": days,
-                                "spark": sparkline_data
-                            })
-                    conn.close()
+            if not strat_names:
+                st.info("您还没有创建任何策略，快去上方新建吧！")
+            else:
+                try:
+                    conn = get_db_connection()
+                    query_strats = """
+                        SELECT s.id, s.name, u.username 
+                        FROM dbo.strategies s
+                        JOIN dbo.users u ON s.user_id = u.id
+                        WHERE s.user_id = %s AND EXISTS (SELECT 1 FROM dbo.nav_history WHERE strategy_id = s.id)
+                    """
+                    cursor = conn.cursor()
+                    cursor.execute(query_strats, (st.session_state.user_id,))
+                    user_strats_data = cursor.fetchall()
                     
-                    if not rank_data:
-                        st.info("暂无足够的数据生成报表。")
+                    if not user_strats_data:
+                        st.info("您还没有添加任何净值数据，快去录入数据吧！")
                     else:
-                        rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
-                        json_data = json.dumps(rank_data)
+                        rank_data = []
+                        for row in user_strats_data:
+                            s_id = row[0]
+                            s_name = row[1]
+                            s_author = row[2]
+                            
+                            df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
+                            
+                            if len(df_nav) > 1:
+                                navs = df_nav['strategy_nav'].values
+                                days = len(df_nav)
+                                gain = (navs[-1] / navs[0] - 1) * 100
+                                annualized = ((navs[-1] / navs[0]) ** (252 / days) - 1) * 100
+                                cum_max = np.maximum.accumulate(navs)
+                                drawdowns = (navs - cum_max) / cum_max
+                                max_drawdown = abs(drawdowns.min()) * 100
+                                
+                                sparkline_data = navs.tolist()
+                                
+                                rank_data.append({
+                                    "id": s_id,
+                                    "name": s_name,
+                                    "author": s_author,
+                                    "gain": round(gain, 2),
+                                    "annualized": round(annualized, 2),
+                                    "drawdown": round(max_drawdown, 2),
+                                    "days": days,
+                                    "spark": sparkline_data
+                                })
+                        conn.close()
                         
-                        html_code = f"""
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <style>
-                                body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
-                                .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-                                .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; user-select: none; }}
-                                .custom-table th.sortable {{ cursor: pointer; }}
-                                .custom-table th.sortable:hover {{ color: #fff; }}
-                                .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
-                                .custom-table tr:hover {{ background-color: #1e1e24; }}
-                                .positive {{ color: #00ffcc !important; font-weight: bold; }}
-                                .negative {{ color: #ff4b4b !important; font-weight: bold; }}
-                                .sys-name {{ font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
-                                .sys-author {{ color: #a0a0a0; font-size: 12px; }}
-                                .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
-                                .arrow.active {{ color: #00ffcc; }}
-                            </style>
-                        </head>
-                        <body>
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>策略名称</th>
-                                        <th class="sortable" onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
-                                        <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
-                                        <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
-                                        <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
-                                        <th>收益走势 (历史)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="table-body">
-                                </tbody>
-                            </table>
+                        if not rank_data:
+                            st.info("暂无足够的数据生成报表。")
+                        else:
+                            rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
+                            json_data = json.dumps(rank_data)
+                            
+                            html_code = f"""
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <style>
+                                    body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
+                                    .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+                                    .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; user-select: none; }}
+                                    .custom-table th.sortable {{ cursor: pointer; }}
+                                    .custom-table th.sortable:hover {{ color: #fff; }}
+                                    .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
+                                    .custom-table tr:hover {{ background-color: #1e1e24; }}
+                                    .positive {{ color: #00ffcc !important; font-weight: bold; }}
+                                    .negative {{ color: #ff4b4b !important; font-weight: bold; }}
+                                    .sys-name {{ font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
+                                    .sys-author {{ color: #a0a0a0; font-size: 12px; }}
+                                    .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
+                                    .arrow.active {{ color: #00ffcc; }}
+                                </style>
+                            </head>
+                            <body>
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>策略名称</th>
+                                            <th class="sortable" onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
+                                            <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
+                                            <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
+                                            <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
+                                            <th>收益走势 (历史)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="table-body">
+                                    </tbody>
+                                </table>
 
-                            <script>
-                                let data = {json_data};
-                                let currentSortKey = 'gain';
-                                let isAscending = false;
+                                <script>
+                                    let data = {json_data};
+                                    let currentSortKey = 'gain';
+                                    let isAscending = false;
 
-                                function generateSparkline(sparkData, width=120, height=40) {{
-                                    if (sparkData.length < 2) return "";
-                                    let min = Math.min(...sparkData);
-                                    let max = Math.max(...sparkData);
-                                    if (max === min) max += 1;
-                                    
-                                    let points = [[0, height]];
-                                    for (let i = 0; i < sparkData.length; i++) {{
-                                        let x = (i / (sparkData.length - 1)) * width;
-                                        let y = height - ((sparkData[i] - min) / (max - min)) * height;
-                                        points.push([x, y]);
-                                    }}
-                                    points.push([width, height]);
-                                    
-                                    let pathStr = "M " + points.map(p => p[0] + "," + p[1]).join(" L ") + " Z";
-                                    let linePoints = points.slice(1, points.length - 1).map(p => p[0] + "," + p[1]).join(" L ");
-                                    let linePath = "M " + linePoints;
-                                    
-                                    let isUp = sparkData[sparkData.length - 1] >= sparkData[0];
-                                    let strokeColor = isUp ? "#00ffcc" : "#ff4b4b";
-                                    let fillColor = isUp ? "rgba(0, 255, 204, 0.15)" : "rgba(255, 75, 75, 0.15)";
-                                    
-                                    return `<svg width="${{width}}" height="${{height}}" viewBox="0 0 ${{width}} ${{height}}" style="overflow: visible;">
-                                                <path d="${{pathStr}}" fill="${{fillColor}}" />
-                                                <path d="${{linePath}}" fill="none" stroke="${{strokeColor}}" stroke-width="1.5" stroke-linejoin="round" />
-                                            </svg>`;
-                                }}
-
-                                function renderTable() {{
-                                    let tbody = document.getElementById("table-body");
-                                    tbody.innerHTML = "";
-                                    
-                                    data.forEach(item => {{
-                                        let gainClass = item.gain >= 0 ? "positive" : "negative";
-                                        let annualClass = item.annualized >= 0 ? "positive" : "negative";
+                                    function generateSparkline(sparkData, width=120, height=40) {{
+                                        if (sparkData.length < 2) return "";
+                                        let min = Math.min(...sparkData);
+                                        let max = Math.max(...sparkData);
+                                        if (max === min) max += 1;
                                         
-                                        let gainStr = item.gain > 0 ? "+" + item.gain.toFixed(2) + "%" : item.gain.toFixed(2) + "%";
-                                        let annualStr = item.annualized > 0 ? "+" + item.annualized.toFixed(2) + "%" : item.annualized.toFixed(2) + "%";
-                                        
-                                        let svgContent = generateSparkline(item.spark);
-                                        
-                                        let tr = document.createElement("tr");
-                                        tr.innerHTML = `
-                                            <td>
-                                                <div class="sys-name">
-                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
-                                                </div>
-                                                <div class="sys-author">${{item.author}}</div>
-                                            </td>
-                                            <td class="${{gainClass}}">${{gainStr}}</td>
-                                            <td class="${{annualClass}}">${{annualStr}}</td>
-                                            <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
-                                            <td>${{item.days}} 天</td>
-                                            <td>${{svgContent}}</td>
-                                        `;
-                                        tbody.appendChild(tr);
-                                    }});
-                                }}
-
-                                function sortTable(key, isNumeric) {{
-                                    document.querySelectorAll('.arrow').forEach(el => {{
-                                        el.className = 'arrow';
-                                        el.innerText = '⇅';
-                                    }});
-
-                                    if (currentSortKey === key) {{
-                                        isAscending = !isAscending;
-                                    }} else {{
-                                        currentSortKey = key;
-                                        isAscending = false;
-                                    }}
-
-                                    let arrowEl = document.getElementById("arr-" + key);
-                                    arrowEl.className = 'arrow active';
-                                    arrowEl.innerText = isAscending ? '▲' : '▼';
-
-                                    data.sort((a, b) => {{
-                                        let valA = a[key];
-                                        let valB = b[key];
-                                        if (isNumeric) {{
-                                            return isAscending ? valA - valB : valB - valA;
-                                        }} else {{
-                                            return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                                        let points = [[0, height]];
+                                        for (let i = 0; i < sparkData.length; i++) {{
+                                            let x = (i / (sparkData.length - 1)) * width;
+                                            let y = height - ((sparkData[i] - min) / (max - min)) * height;
+                                            points.push([x, y]);
                                         }}
-                                    }});
-                                    
-                                    renderTable();
-                                }}
+                                        points.push([width, height]);
+                                        
+                                        let pathStr = "M " + points.map(p => p[0] + "," + p[1]).join(" L ") + " Z";
+                                        let linePoints = points.slice(1, points.length - 1).map(p => p[0] + "," + p[1]).join(" L ");
+                                        let linePath = "M " + linePoints;
+                                        
+                                        let isUp = sparkData[sparkData.length - 1] >= sparkData[0];
+                                        let strokeColor = isUp ? "#00ffcc" : "#ff4b4b";
+                                        let fillColor = isUp ? "rgba(0, 255, 204, 0.15)" : "rgba(255, 75, 75, 0.15)";
+                                        
+                                        return `<svg width="${{width}}" height="${{height}}" viewBox="0 0 ${{width}} ${{height}}" style="overflow: visible;">
+                                                    <path d="${{pathStr}}" fill="${{fillColor}}" />
+                                                    <path d="${{linePath}}" fill="none" stroke="${{strokeColor}}" stroke-width="1.5" stroke-linejoin="round" />
+                                                </svg>`;
+                                    }}
 
-                                renderTable();
-                            </script>
-                        </body>
-                        </html>
-                        """
-                        
-                        components.html(html_code, height=400, scrolling=True)
-            except Exception as e:
-                st.error(f"策略对比表加载失败: {e}")
+                                    function renderTable() {{
+                                        let tbody = document.getElementById("table-body");
+                                        tbody.innerHTML = "";
+                                        
+                                        data.forEach(item => {{
+                                            let gainClass = item.gain >= 0 ? "positive" : "negative";
+                                            let annualClass = item.annualized >= 0 ? "positive" : "negative";
+                                            
+                                            let gainStr = item.gain > 0 ? "+" + item.gain.toFixed(2) + "%" : item.gain.toFixed(2) + "%";
+                                            let annualStr = item.annualized > 0 ? "+" + item.annualized.toFixed(2) + "%" : item.annualized.toFixed(2) + "%";
+                                            
+                                            let svgContent = generateSparkline(item.spark);
+                                            
+                                            let tr = document.createElement("tr");
+                                            tr.innerHTML = `
+                                                <td>
+                                                    <div class="sys-name">
+                                                        <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                    </div>
+                                                    <div class="sys-author">${{item.author}}</div>
+                                                </td>
+                                                <td class="${{gainClass}}">${{gainStr}}</td>
+                                                <td class="${{annualClass}}">${{annualStr}}</td>
+                                                <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
+                                                <td>${{item.days}} 天</td>
+                                                <td>${{svgContent}}</td>
+                                            `;
+                                            tbody.appendChild(tr);
+                                        }});
+                                    }}
+
+                                    function sortTable(key, isNumeric) {{
+                                        document.querySelectorAll('.arrow').forEach(el => {{
+                                            el.className = 'arrow';
+                                            el.innerText = '⇅';
+                                        }});
+
+                                        if (currentSortKey === key) {{
+                                            isAscending = !isAscending;
+                                        }} else {{
+                                            currentSortKey = key;
+                                            isAscending = false;
+                                        }}
+
+                                        let arrowEl = document.getElementById("arr-" + key);
+                                        arrowEl.className = 'arrow active';
+                                        arrowEl.innerText = isAscending ? '▲' : '▼';
+
+                                        data.sort((a, b) => {{
+                                            let valA = a[key];
+                                            let valB = b[key];
+                                            if (isNumeric) {{
+                                                return isAscending ? valA - valB : valB - valA;
+                                            }} else {{
+                                                return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                                            }}
+                                        }});
+                                        
+                                        renderTable();
+                                    }}
+
+                                    renderTable();
+                                </script>
+                            </body>
+                            </html>
+                            """
+                            
+                            components.html(html_code, height=400, scrolling=True)
+                except Exception as e:
+                    st.error(f"策略对比表加载失败: {e}")
 
         with tab2:
-            st.markdown("#### 录入今日数据")
-            if strat_names:
+            if not strat_names:
+                st.warning("⚠️ 您还没有创建任何策略，请先前往「📊 策略管理」标签页新建策略。")
+            else:
+                st.markdown("#### 录入今日数据")
                 default_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
                 selected_input_strat_name = st.selectbox("选择要录入的策略", strat_names, index=default_idx)
-            else:
-                st.warning("您还没有创建任何策略，请先去策略管理新建。")
-                selected_input_strat_name = None
 
-            input_date = st.date_input("日期", datetime.now())
-            input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
-            
-            target_bench_code = "SHSE.000300"
-            target_strat_id = st.session_state.current_strategy_id
-            
-            if selected_input_strat_name:
-                for s in user_strats:
-                    if s[1] == selected_input_strat_name:
-                        target_strat_id = s[0]
-                        target_bench_code = s[2]
-                        break
-                        
-            current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
-            selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
-            final_bench_code = BENCHMARKS[selected_bench_name]
-            
-            if st.button("提交数据", type="primary"):
-                if not selected_input_strat_name:
-                    st.error("请先选择策略！")
-                else:
-                    success, msg = insert_manual_nav(target_strat_id, final_bench_code, input_date, input_nav)
-                    if success:
-                        st.success(msg)
-                        time.sleep(1)
-                        st.rerun()
+                input_date = st.date_input("日期", datetime.now())
+                input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
+                
+                target_bench_code = "SHSE.000300"
+                target_strat_id = st.session_state.current_strategy_id
+                
+                if selected_input_strat_name:
+                    for s in user_strats:
+                        if s[1] == selected_input_strat_name:
+                            target_strat_id = s[0]
+                            target_bench_code = s[2]
+                            break
+                            
+                current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
+                selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
+                final_bench_code = BENCHMARKS[selected_bench_name]
+                
+                if st.button("提交数据", type="primary"):
+                    if not selected_input_strat_name:
+                        st.error("请先选择策略！")
                     else:
-                        st.error(msg)
+                        success, msg = insert_manual_nav(target_strat_id, final_bench_code, input_date, input_nav)
+                        if success:
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(msg)
         
         with tab3:
-            st.markdown("#### 修改或删除历史数据")
-            if strat_names:
+            if not strat_names:
+                st.warning("⚠️ 您还没有创建任何策略，请先前往「📊 策略管理」标签页新建策略。")
+            else:
+                st.markdown("#### 修改或删除历史数据")
                 default_edit_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
                 edit_strat_name = st.selectbox("选择要编辑的策略", strat_names, index=default_edit_idx)
                 target_edit_id = None
@@ -1080,5 +1093,3 @@ elif nav_choice == "我的":
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"保存失败: {e}")
-            else:
-                st.warning("您还没有创建任何策略。")
