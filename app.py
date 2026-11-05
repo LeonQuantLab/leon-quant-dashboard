@@ -124,6 +124,8 @@ def create_new_strategy(user_id, strategy_name, bench_code):
         st.error(f"创建策略失败: {e}")
         return False
 
+# 👇 【性能优化】加入缓存装饰器，60秒内重复访问不会去查数据库
+@st.cache_data(ttl=60, show_spinner=False)
 def load_raw_nav_data(strategy_id):
     try:
         conn = get_db_connection()
@@ -197,6 +199,8 @@ def insert_manual_nav(strategy_id, bench_code, input_date, input_nav):
         cursor.execute(sql, (strategy_id, str(input_date), strategy_id, str(input_date), float(input_nav), bench_val))
         conn.commit()
         conn.close()
+        # 录入数据后清除缓存，保证下次刷新能看到最新数据
+        load_raw_nav_data.clear()
         return True, "✅ 数据录入成功！"
     except Exception as e:
         return False, f"录入失败: {e}"
@@ -214,33 +218,33 @@ if "logged_in" not in st.session_state:
 if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
-if "current_nav" not in st.session_state:
-    st.session_state.current_nav = "首页"
+if "nav_menu" not in st.session_state:
+    st.session_state.nav_menu = "首页"
+
+# 用来标记是否需要强制跳转页面（登录/注册成功后）
+if "force_jump" not in st.session_state:
+    st.session_state.force_jump = False
 
 # ==========================================
 # 4. 全局 CSS
 # ==========================================
 st.markdown("""
     <style>
-        /* 整体背景与字体 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
-        /* 隐藏顶部 Header 和锚点链接 */
         header[data-testid="stHeader"] { display: none !important; }
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
         [data-testid="stHeaderActionElements"] { display: none !important; }
 
-        /* 容器边距 */
         .block-container { 
             padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
             max-width: 95% !important; 
         }
 
-        /* 顶部导航按钮 */
         .top-nav-btn button {
             width: 100% !important;
             padding: 0.3rem 1rem !important;
@@ -249,50 +253,34 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* 👇👇👇 【核心修复】暴力重写 Selectbox 下拉框样式 👇👇👇 */
-        
-        /* 1. 下拉框输入框本身 */
+        /* 修复 Selectbox 下拉菜单白底灰字的问题 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
             border-color: #333 !important;
             color: #e0e0e0 !important;
         }
-        
-        /* 2. 下拉框里的文字 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
             color: #e0e0e0 !important;
         }
-        
-        /* 3. 下拉箭头图标 */
         div[data-testid="stSelectbox"] svg {
             fill: #a0a0a0 !important;
         }
-
-        /* 4. 弹出的下拉菜单容器 (Popover) */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-        
-        /* 5. 弹出菜单里的列表 */
         div[data-baseweb="popover"] ul {
             background-color: #1e1e24 !important;
         }
-        
-        /* 6. 弹出菜单里的每个选项 */
         div[data-baseweb="popover"] li {
             background-color: #1e1e24 !important;
             color: #e0e0e0 !important;
         }
-        
-        /* 7. 鼠标悬停在选项上 */
         div[data-baseweb="popover"] li:hover {
             background-color: #333333 !important;
             color: #00ffcc !important;
         }
-        
-        /* 8. 选中的选项 */
         div[data-baseweb="popover"] li[aria-selected="true"] {
             background-color: #333333 !important;
             color: #00ffcc !important;
@@ -310,12 +298,18 @@ with col_logo:
     st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化实验室</h2>", unsafe_allow_html=True)
 
 with col_nav:
+    # 如果登录/注册成功，强制设置导航状态并重置标志
+    if st.session_state.force_jump:
+        st.session_state.nav_menu = "我的"
+        st.session_state.force_jump = False
+
     menu_options = ["首页", "排行榜", "加入我们", "我的"]
     nav_choice = option_menu(
         menu_title=None,
         options=menu_options,
         icons=["house", "trophy", "person-plus", "person-fill"],
-        default_index=menu_options.index(st.session_state.current_nav),
+        default_index=0, # 默认值随便填，真实状态由 key="nav_menu" 控制
+        key="nav_menu",  # 👈 【核心修复】绑定 key，实现瞬间切换
         orientation="horizontal",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent", "width": "100%"},
@@ -324,8 +318,6 @@ with col_nav:
             "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
-    if nav_choice != st.session_state.current_nav:
-        st.session_state.current_nav = nav_choice
 
 with col_user:
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
@@ -341,7 +333,7 @@ with col_user:
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
-                st.session_state.current_nav = "首页"
+                st.session_state.nav_menu = "首页"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -488,7 +480,7 @@ if st.session_state.auth_action == "login":
                 st.session_state.username = u
                 st.session_state.user_id = uid
                 st.session_state.auth_action = "none"
-                st.session_state.current_nav = "我的" 
+                st.session_state.force_jump = True  # 👈 触发强制跳转标志
                 
                 strats = get_user_strategies(uid)
                 if strats:
@@ -512,7 +504,7 @@ if st.session_state.auth_action == "login":
                     st.session_state.username = ru
                     st.session_state.user_id = uid
                     st.session_state.auth_action = "none"
-                    st.session_state.current_nav = "我的" 
+                    st.session_state.force_jump = True # 👈 触发强制跳转标志
                     
                     st.success(msg)
                     time.sleep(1)
@@ -522,7 +514,7 @@ if st.session_state.auth_action == "login":
 
     if st.button("⬅️ 取消登录，返回首页"):
         st.session_state.auth_action = "none"
-        st.session_state.current_nav = "首页"
+        st.session_state.nav_menu = "首页"
         st.rerun()
     st.stop()
 
@@ -844,6 +836,7 @@ elif nav_choice == "我的":
                                 )
                         conn.commit()
                         conn.close()
+                        load_raw_nav_data.clear() # 👈 保存后清空缓存，确保拉取最新数据
                         st.success("✅ 保存成功！")
                         time.sleep(1)
                         st.rerun()
