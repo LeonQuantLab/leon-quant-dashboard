@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+pymssql
+python-dotenv
+streamlit-autorefresh
+akshare
+streamlit-option-menu
