@@ -82,7 +82,6 @@ def register_user(username, password):
         cursor = conn.cursor()
         pwd_hash = hash_password(password)
         
-        # 先查一下有没有重名
         cursor.execute("SELECT id FROM dbo.users WHERE username = %s", (username,))
         if cursor.fetchone():
             conn.close()
@@ -223,19 +222,25 @@ if "current_nav" not in st.session_state:
 # ==========================================
 st.markdown("""
     <style>
+        /* 整体背景与字体 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
+        /* 隐藏顶部 Header 和锚点链接 */
         header[data-testid="stHeader"] { display: none !important; }
+        h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
+        [data-testid="stHeaderActionElements"] { display: none !important; }
 
+        /* 容器边距 */
         .block-container { 
             padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
             max-width: 95% !important; 
         }
 
+        /* 顶部导航按钮 */
         .top-nav-btn button {
             width: 100% !important;
             padding: 0.3rem 1rem !important;
@@ -244,37 +249,54 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
-            display: none !important;
-        }
-        [data-testid="stHeaderActionElements"] {
-            display: none !important;
-        }
-
-        /* 👇 【核心修复】修复 Selectbox 下拉菜单白底灰字的问题 */
-        div[data-baseweb="select"] > div {
-            background-color: #1a1c24 !important;
+        /* 👇👇👇 【核心修复】暴力重写 Selectbox 下拉框样式 👇👇👇 */
+        
+        /* 1. 下拉框输入框本身 */
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            background-color: #1e1e24 !important;
             border-color: #333 !important;
             color: #e0e0e0 !important;
         }
-        div[data-baseweb="popover"] div[data-baseweb="menu"] {
-            background-color: #1a1c24 !important;
-            border: 1px solid #333 !important;
-        }
-        div[data-baseweb="popover"] ul {
-            background-color: #1a1c24 !important;
-        }
-        div[data-baseweb="popover"] ul li {
+        
+        /* 2. 下拉框里的文字 */
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
             color: #e0e0e0 !important;
-            background-color: #1a1c24 !important;
         }
-        div[data-baseweb="popover"] ul li:hover {
+        
+        /* 3. 下拉箭头图标 */
+        div[data-testid="stSelectbox"] svg {
+            fill: #a0a0a0 !important;
+        }
+
+        /* 4. 弹出的下拉菜单容器 (Popover) */
+        div[data-baseweb="popover"] > div {
+            background-color: #1e1e24 !important;
+            border: 1px solid #333 !important;
+            border-radius: 5px !important;
+        }
+        
+        /* 5. 弹出菜单里的列表 */
+        div[data-baseweb="popover"] ul {
+            background-color: #1e1e24 !important;
+        }
+        
+        /* 6. 弹出菜单里的每个选项 */
+        div[data-baseweb="popover"] li {
+            background-color: #1e1e24 !important;
+            color: #e0e0e0 !important;
+        }
+        
+        /* 7. 鼠标悬停在选项上 */
+        div[data-baseweb="popover"] li:hover {
             background-color: #333333 !important;
             color: #00ffcc !important;
         }
-        div[data-baseweb="popover"] ul li[aria-selected="true"] {
+        
+        /* 8. 选中的选项 */
+        div[data-baseweb="popover"] li[aria-selected="true"] {
             background-color: #333333 !important;
             color: #00ffcc !important;
+            font-weight: bold;
         }
     </style>
 """, unsafe_allow_html=True)
