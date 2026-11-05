@@ -231,7 +231,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (究极暴力暗黑补丁)
+# 4. 全局 CSS (终极暴力覆盖方案)
 # ==========================================
 st.markdown("""
     <style>
@@ -249,16 +249,12 @@ st.markdown("""
         }
 
         /* ==========================================
-           核心输入组件强推暗黑
+           核心输入框暗黑化
            ========================================== */
         div[data-testid="stSelectbox"] > div,
-        div[data-testid="stSelectbox"] > div > div,
         div[data-testid="stDateInput"] > div,
-        div[data-testid="stDateInput"] > div > div,
         div[data-testid="stNumberInput"] > div,
-        div[data-testid="stNumberInput"] > div > div,
-        div[data-testid="stTextInput"] > div,
-        div[data-testid="stTextInput"] > div > div {
+        div[data-testid="stTextInput"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
             border-radius: 5px !important;
@@ -286,44 +282,77 @@ st.markdown("""
         }
 
         /* ==========================================
-           【核弹级处理】挂载在 body 下的所有 Popover (下拉菜单 & 日历)
+           【核弹级 Popover 修复】针对下拉菜单和日历挂载在 body 的弹窗
            ========================================== */
+        
+        /* 最外层 Popover 容器 */
         div[data-baseweb="popover"],
-        div[data-baseweb="popover"] > div,
-        div[data-baseweb="calendar"],
-        div[data-baseweb="calendar"] > div,
-        div[data-baseweb="calendar"] > div > div {
+        div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
             border-radius: 5px !important;
         }
 
-        div[data-baseweb="calendar"] *, 
+        /* 下拉菜单列表 */
         div[data-baseweb="popover"] ul,
-        div[data-baseweb="popover"] li,
-        div[data-baseweb="popover"] div[role="listbox"] {
+        div[data-baseweb="menu"],
+        div[role="listbox"] {
             background-color: #1e1e24 !important;
-            color: #ffffff !important;
         }
 
+        /* 列表中的每一个选项 (极其关键) */
+        div[data-baseweb="popover"] li,
+        div[data-baseweb="popover"] div[role="option"],
+        div[role="option"] {
+            background-color: #1e1e24 !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+
+        /* 选项的悬停状态 (鼠标移上去) */
         div[data-baseweb="popover"] li:hover,
-        div[data-baseweb="calendar"] div[role="button"]:hover,
-        div[data-baseweb="calendar"] button:hover {
+        div[data-baseweb="popover"] div[role="option"]:hover,
+        div[role="option"]:hover {
+            background-color: #333333 !important;
+            color: #00ffcc !important;
+        }
+
+        /* 选项的选中状态 */
+        div[data-baseweb="popover"] li[aria-selected="true"],
+        div[data-baseweb="popover"] div[role="option"][aria-selected="true"],
+        div[role="option"][aria-selected="true"] {
+            background-color: #333333 !important;
+            color: #00ffcc !important;
+            font-weight: bold !important;
+        }
+
+        /* 强制所有内部 div 透明，文字白色 */
+        div[data-baseweb="popover"] * {
+            background-color: transparent !important;
+            color: #ffffff !important;
+        }
+        div[data-baseweb="popover"] > div {
+            background-color: #1e1e24 !important;
+        }
+
+        /* 日历面板特殊处理 */
+        div[data-baseweb="calendar"] {
+            background-color: #1e1e24 !important;
+        }
+        div[data-baseweb="calendar"] div,
+        div[data-baseweb="calendar"] button {
+            background-color: transparent !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+        div[data-baseweb="calendar"] div[role="button"]:hover {
             background-color: #333333 !important;
             border-radius: 5px !important;
         }
-
-        div[data-baseweb="popover"] li[aria-selected="true"],
         div[data-baseweb="calendar"] div[aria-selected="true"] {
             background-color: #ff4b4b !important;
             color: white !important;
-        }
-
-        div[data-baseweb="calendar"] button,
-        div[data-baseweb="calendar"] div[role="button"] {
-            color: #ffffff !important;
-            background-color: transparent !important;
-            border: none !important;
+            border-radius: 5px !important;
         }
     </style>
 """, unsafe_allow_html=True)
