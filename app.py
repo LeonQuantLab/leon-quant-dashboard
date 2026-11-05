@@ -465,20 +465,54 @@ if nav_choice == "首页":
         render_dashboard(1, "Leon大A动量策略", "Leon量化工作室实盘")
 
 # ==========================================
-# 👇 排行榜页面 (支持原生列排序、微型图、红绿样式)
+# 👇 排行榜页面 (暗黑定制版、面积迷你图、灵活排序)
 # ==========================================
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。💡 *点击表头可进行升序/降序排序*。")
+    st.markdown("展示所有已入库策略的历史表现。")
     st.divider()
 
-    # 分为左右两列：左侧表格占 7.5，右侧边栏占 2.5
+    # 辅助函数：生成带渐变填充的 SVG 迷你走势图
+    def generate_sparkline(data_list, width=120, height=40):
+        if len(data_list) < 2: return ""
+        min_val, max_val = min(data_list), max(data_list)
+        if max_val == min_val: max_val += 1
+        
+        points = []
+        # 起点（左下角）
+        points.append(f"0,{height}")
+        for i, val in enumerate(data_list):
+            x = (i / (len(data_list) - 1)) * width
+            y = height - ((val - min_val) / (max_val - min_val)) * height
+            points.append(f"{x},{y}")
+        # 终点（右下角）
+        points.append(f"{width},{height}")
+        
+        # 封闭多边形形成面积图
+        path = "M " + " L ".join(points) + " Z"
+        
+        # 判断涨跌颜色
+        is_up = data_list[-1] >= data_list[0]
+        stroke_color = "#00ffcc" if is_up else "#ff4b4b"
+        fill_color = "rgba(0, 255, 204, 0.15)" if is_up else "rgba(255, 75, 75, 0.15)"
+        
+        # 绘制单独的折线（不带底部封闭）以让线条清晰
+        line_points = [p for i, p in enumerate(points) if 0 < i < len(points)-1]
+        line_path = "M " + " L ".join(line_points)
+        
+        return f'''
+        <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="overflow: visible;">
+            <path d="{path}" fill="{fill_color}" />
+            <path d="{line_path}" fill="none" stroke="{stroke_color}" stroke-width="1.5" stroke-linejoin="round" />
+        </svg>
+        '''
+
+    # 分为左右两列
     col_main, col_side = st.columns([7.5, 2.5])
 
     with col_main:
         try:
             conn = get_db_connection()
-            # 1. 获取所有策略的基础信息
             query_strats = """
                 SELECT s.id, s.name, u.username 
                 FROM dbo.strategies s
@@ -490,86 +524,99 @@ elif nav_choice == "排行榜":
             if df_strats.empty:
                 st.info("排行榜暂无数据，等您来霸榜！")
             else:
-                # 2. 循环处理每个策略的数据
                 rank_data = []
                 for _, row in df_strats.iterrows():
                     s_id = row['id']
-                    # 拉取该策略的净值数据
                     df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
                     
-                    if len(df_nav) > 1: # 至少需要2天数据才能计算走势
+                    if len(df_nav) > 1:
                         navs = df_nav['strategy_nav'].values
                         days = len(df_nav)
-                        
-                        # 1. 历史收益
                         gain = (navs[-1] / navs[0] - 1) * 100
-                        
-                        # 2. 年化收益 (假设一年252个交易日)
                         annualized = ((navs[-1] / navs[0]) ** (252 / days) - 1) * 100
-                        
-                        # 3. 最大回撤
                         cum_max = np.maximum.accumulate(navs)
                         drawdowns = (navs - cum_max) / cum_max
                         max_drawdown = abs(drawdowns.min()) * 100
-                        
-                        # 4. 取最后 30 个数据点画微型图
                         sparkline_data = navs[-30:].tolist()
                         
                         rank_data.append({
                             "策略名称": row['name'],
                             "创建者": row['username'],
-                            "历史收益(%)": round(gain, 2),
-                            "年化收益(%)": round(annualized, 2),
-                            "最大回撤(%)": round(max_drawdown, 2),
+                            "历史收益": round(gain, 2),
+                            "年化收益": round(annualized, 2),
+                            "最大回撤": round(max_drawdown, 2),
                             "运行天数": days,
-                            "收益走势": sparkline_data
+                            "sparkline": sparkline_data
                         })
-                
                 conn.close()
                 
                 if not rank_data:
-                    st.info("暂无足够的数据来生成排行榜（至少需要2天净值记录）。")
+                    st.info("暂无足够的数据生成排行榜。")
                 else:
-                    # 转换为 DataFrame
-                    df_rank = pd.DataFrame(rank_data)
+                    # 顶部操作栏：选择排序
+                    st.markdown("#### 📊 排序选项")
+                    sort_col1, sort_col2 = st.columns([2, 2])
+                    with sort_col1:
+                        sort_field = st.selectbox("排序字段", ["历史收益", "年化收益", "最大回撤", "运行天数"], index=0)
+                    with sort_col2:
+                        sort_order = st.radio("排序方式", ["降序 (从高到低)", "升序 (从低到高)"], horizontal=True)
                     
-                    # 默认按历史收益降序排序
-                    df_rank = df_rank.sort_values(by="历史收益(%)", ascending=False).reset_index(drop=True)
+                    # 执行排序
+                    ascending = True if "升序" in sort_order else False
+                    # 最大回撤通常是越小越好，但这里严格按数值升/降序排
+                    rank_data = sorted(rank_data, key=lambda x: x[sort_field], reverse=not ascending)
                     
-                    # 应用 Pandas 样式：正收益绿色，负收益红色，回撤红色
-                    styled_df = df_rank.style.map(
-                        lambda v: 'color: #00ffcc; font-weight: bold;' if v >= 0 else 'color: #ff4b4b; font-weight: bold;', 
-                        subset=['历史收益(%)', '年化收益(%)']
-                    ).map(
-                        lambda v: 'color: #ff4b4b;', 
-                        subset=['最大回撤(%)']
-                    ).format({
-                        "历史收益(%)": "{:+.2f}%",
-                        "年化收益(%)": "{:+.2f}%",
-                        "最大回撤(%)": "{:.2f}%",
-                        "运行天数": "{} 天"
-                    })
+                    # 构建 HTML 表格
+                    table_html = """
+                    <style>
+                        .custom-table { width: 100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif; }
+                        .custom-table th { text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; }
+                        .custom-table td { padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }
+                        .custom-table tr:hover { background-color: #1e1e24; }
+                        .positive { color: #00ffcc !important; font-weight: bold; }
+                        .negative { color: #ff4b4b !important; font-weight: bold; }
+                        .sys-name { color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+                        .sys-author { color: #a0a0a0; font-size: 12px; }
+                    </style>
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">System / 策略名称</th>
+                                <th style="width: 15%;">Gain / 历史收益</th>
+                                <th style="width: 15%;">Annualized / 年化</th>
+                                <th style="width: 15%;">Drawdown / 回撤</th>
+                                <th style="width: 10%;">Days / 天数</th>
+                                <th style="width: 20%;">Performance / 走势</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                    """
                     
-                    # 使用 st.dataframe 和 column_config 渲染
-                    st.dataframe(
-                        styled_df,
-                        use_container_width=True,
-                        height=600, # 固定高度，支持滚动
-                        column_config={
-                            "策略名称": st.column_config.TextColumn("策略名称", width="medium"),
-                            "创建者": st.column_config.TextColumn("创建者", width="small"),
-                            "历史收益(%)": st.column_config.TextColumn("历史收益", help="从运行第一天到现在的总收益"),
-                            "年化收益(%)": st.column_config.TextColumn("年化收益", help="折算后的年化收益率"),
-                            "最大回撤(%)": st.column_config.TextColumn("最大回撤", help="历史最大回撤幅度"),
-                            "运行天数": st.column_config.TextColumn("运行天数"),
-                            "收益走势": st.column_config.LineChartColumn(
-                                "收益走势 (近30日)",
-                                width="medium",
-                                y_min=None,
-                                y_max=None
-                            )
-                        }
-                    )
+                    for item in rank_data:
+                        gain_color = "positive" if item['历史收益'] >= 0 else "negative"
+                        annual_color = "positive" if item['年化收益'] >= 0 else "negative"
+                        sparkline_svg = generate_sparkline(item['sparkline'])
+                        
+                        gain_str = f"+{item['历史收益']:.2f}%" if item['历史收益'] > 0 else f"{item['历史收益']:.2f}%"
+                        annual_str = f"+{item['年化收益']:.2f}%" if item['年化收益'] > 0 else f"{item['年化收益']:.2f}%"
+                        
+                        table_html += f"""
+                            <tr>
+                                <td>
+                                    <div class="sys-name">{item['策略名称']}</div>
+                                    <div class="sys-author">{item['创建者']}</div>
+                                </td>
+                                <td class="{gain_color}">{gain_str}</td>
+                                <td class="{annual_color}">{annual_str}</td>
+                                <td class="negative">{item['最大回撤']:.2f}%</td>
+                                <td>{item['运行天数']} 天</td>
+                                <td>{sparkline_svg}</td>
+                            </tr>
+                        """
+                    
+                    table_html += "</tbody></table>"
+                    st.markdown(table_html, unsafe_allow_html=True)
+
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
 
