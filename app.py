@@ -229,7 +229,7 @@ st.markdown("""
     <style>
         /* 全局背景 */
         .stApp { background-color: #0e1117; }
-        h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
+        h1, h2, h3, p, div, span, label { color: #e0e0e0 !important; }
         
         header[data-testid="stHeader"] { display: none !important; }
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
@@ -241,68 +241,70 @@ st.markdown("""
         }
 
         /* ==========================================
-           核心修复：针对 Form 内部组件的暴力覆盖
+           强制覆盖所有输入框（无论是否在 Form 中）
            ========================================== */
            
-        /* 1. 强制所有输入框（Text, Number, Date）的底层包装容器为深色 */
+        /* 1. 强制输入框的外壳为暗色 */
         div[data-baseweb="input"], 
         div[data-baseweb="base-input"],
         div[data-testid="stDateInput"] > div,
         div[data-testid="stNumberInput"] > div {
             background-color: #1e1e24 !important;
-            border: 1px solid #333 !important;
+            border: 1px solid #555 !important; /* 边框调亮一点以便看清 */
             border-radius: 5px !important;
+            box-shadow: none !important;
         }
 
-        /* 2. 强制输入框本身的文字颜色为浅色，并去除背景 */
+        /* 2. 强制输入框本身的文字颜色为白色，并去除背景 */
         input {
             background-color: transparent !important;
-            color: #e0e0e0 !important;
-            -webkit-text-fill-color: #e0e0e0 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         /* 3. 数字输入框的加减按钮 */
         div[data-testid="stNumberInput"] button {
             background-color: transparent !important;
-            border-left: 1px solid #333 !important;
-            color: #a0a0a0 !important;
+            border-left: 1px solid #555 !important;
+            color: #ffffff !important;
         }
         div[data-testid="stNumberInput"] button:hover {
             background-color: #333 !important;
             color: #00ffcc !important;
         }
 
-        /* 4. 日历图标、下拉箭头等 SVG 图标颜色 */
+        /* 4. 图标颜色（日历、下拉箭头） */
         svg {
-            fill: #a0a0a0 !important;
-            color: #a0a0a0 !important;
+            fill: #ffffff !important;
+            color: #ffffff !important;
         }
 
-        /* 5. Selectbox 下拉框暴力覆盖 */
+        /* 5. Selectbox 下拉框容器 */
         div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
-            border: 1px solid #333 !important;
+            border: 1px solid #555 !important;
             border-radius: 5px !important;
         }
+        div[data-baseweb="select"] span, 
         div[data-baseweb="select"] div {
-            color: #e0e0e0 !important;
+            color: #ffffff !important;
         }
 
-        /* 6. 下拉菜单弹窗、日历弹窗容器 */
+        /* 6. 下拉菜单弹窗 */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
-            border: 1px solid #333 !important;
+            border: 1px solid #555 !important;
             border-radius: 5px !important;
         }
         div[data-baseweb="popover"] ul { background-color: #1e1e24 !important; }
-        div[data-baseweb="popover"] li { background-color: #1e1e24 !important; color: #e0e0e0 !important; }
+        div[data-baseweb="popover"] li { background-color: #1e1e24 !important; color: #ffffff !important; }
         div[data-baseweb="popover"] li:hover { background-color: #333333 !important; color: #00ffcc !important; }
         div[data-baseweb="popover"] li[aria-selected="true"] { background-color: #333333 !important; color: #00ffcc !important; font-weight: bold; }
 
-        /* 7. 日历弹窗内部背景和文字 */
+        /* 7. 日历弹窗内部 */
         div[data-baseweb="calendar"] { background-color: #1e1e24 !important; }
-        div[data-baseweb="calendar"] div { background-color: transparent !important; color: #e0e0e0 !important; }
-        div[data-baseweb="calendar"] button { color: #e0e0e0 !important; }
+        div[data-baseweb="calendar"] div { background-color: transparent !important; color: #ffffff !important; }
+        div[data-baseweb="calendar"] button { color: #ffffff !important; }
         div[data-baseweb="calendar"] button:hover { background-color: #333333 !important; border-radius: 5px !important; }
         div[data-baseweb="calendar"] div[aria-selected="true"] { background-color: #ff4b4b !important; color: white !important; }
     </style>
