@@ -200,7 +200,8 @@ def insert_manual_nav(strategy_id, bench_code, input_date, input_nav):
 # ==========================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.username = "Leon量化工作室实盘"
+    # 👇 去掉了“实盘”
+    st.session_state.username = "Leon量化工作室"
     st.session_state.user_id = 1 
     st.session_state.current_strategy_id = 1
     st.session_state.current_strategy_name = "大A趋势跟踪"
@@ -269,7 +270,8 @@ with col_user:
             st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
             if st.button("退出登录", key="logout_btn", use_container_width=True):
                 st.session_state.logged_in = False
-                st.session_state.username = "Leon量化工作室实盘"
+                # 👇 去掉了“实盘”
+                st.session_state.username = "Leon量化工作室"
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
@@ -389,14 +391,13 @@ def render_dashboard(strategy_id, strategy_name, author_name):
         else:
             x_range = [df['日期'].min() - pd.Timedelta(days=1), df['日期'].max() + pd.Timedelta(days=1)]
         
-        # 👇 修改了横坐标的刻度格式
         fig.update_xaxes(
             range=x_range, 
             showgrid=False, 
             linecolor='#333', 
             hoverformat='%Y-%m-%d',
-            tickformat='%Y-%m',  # 强制使用数字格式，例如 2026-05
-            dtick="M1"           # 强制每个月显示一次刻度，避免日期挤在一起
+            tickformat='%Y-%m',
+            dtick="M1"
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -462,7 +463,8 @@ if nav_choice == "首页":
                     break
             render_dashboard(st.session_state.current_strategy_id, st.session_state.current_strategy_name, st.session_state.username)
     else:
-        render_dashboard(1, "大A趋势跟踪", "Leon量化工作室实盘")
+        # 👇 去掉了“实盘”
+        render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
 
 # ==========================================
 # 排行榜页面 (带表头点击排序、完整历史迷你图)
