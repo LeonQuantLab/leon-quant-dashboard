@@ -223,22 +223,19 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (全面优化暗黑主题组件)
+# 4. 全局 CSS (暗黑主题)
 # ==========================================
 st.markdown("""
     <style>
-        /* 整体背景与字体 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
-        /* 隐藏默认顶栏和锚点 */
         header[data-testid="stHeader"] { display: none !important; }
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
         [data-testid="stHeaderActionElements"] { display: none !important; }
 
-        /* 页面留白 */
         .block-container { 
             padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
@@ -253,11 +250,7 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* ==========================================
-           统一暗黑输入框样式 (日期、数字、文本)
-           ========================================== */
-           
-        /* 1. 通用外层容器 (背景、边框、圆角) */
+        /* 统一暗黑输入框样式 */
         div[data-testid="stTextInput"] > div,
         div[data-testid="stNumberInput"] > div,
         div[data-testid="stDateInput"] > div {
@@ -265,17 +258,13 @@ st.markdown("""
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-
-        /* 2. 内部输入框 (透明背景、亮色文字) */
         div[data-testid="stTextInput"] input,
         div[data-testid="stNumberInput"] input,
         div[data-testid="stDateInput"] input {
             background-color: transparent !important;
             color: #e0e0e0 !important;
-            -webkit-text-fill-color: #e0e0e0 !important; /* 强制覆盖浏览器的自动填充颜色 */
+            -webkit-text-fill-color: #e0e0e0 !important;
         }
-
-        /* 3. 数字输入框的加减按钮 */
         div[data-testid="stNumberInput"] button {
             background-color: transparent !important;
             border-left: 1px solid #333 !important;
@@ -285,15 +274,13 @@ st.markdown("""
             background-color: #333 !important;
             color: #00ffcc !important;
         }
-
-        /* 4. 所有输入框内的图标 (如日历图标) */
         div[data-testid="stTextInput"] svg,
         div[data-testid="stNumberInput"] svg,
         div[data-testid="stDateInput"] svg {
             fill: #a0a0a0 !important;
         }
 
-        /* 5. Selectbox 下拉框 */
+        /* Selectbox 下拉框 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
@@ -307,18 +294,12 @@ st.markdown("""
             fill: #a0a0a0 !important;
         }
 
-        /* ==========================================
-           弹窗样式 (下拉菜单、日历)
-           ========================================== */
-        
-        /* 通用 Popover 容器 */
+        /* 弹窗样式 (下拉菜单、日历) */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-
-        /* 下拉菜单列表 */
         div[data-baseweb="popover"] ul {
             background-color: #1e1e24 !important;
         }
@@ -335,8 +316,6 @@ st.markdown("""
             color: #00ffcc !important;
             font-weight: bold;
         }
-
-        /* 日历弹窗面板 */
         div[data-baseweb="calendar"] {
             background-color: #1e1e24 !important;
         }
@@ -1048,25 +1027,50 @@ elif nav_choice == "我的":
             except Exception as e:
                 st.error(f"策略对比表加载失败: {e}")
 
+        # 👇 【核心修改】录入数据页面，添加策略选择
         with tab2:
-            st.markdown(f"#### 录入今日数据 (策略: {st.session_state.current_strategy_name})")
+            st.markdown("#### 录入今日数据")
             with st.form("manual_nav_input_tab"):
+                # 1. 先选策略
+                if strat_names:
+                    default_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
+                    selected_input_strat_name = st.selectbox("选择要录入的策略", strat_names, index=default_idx)
+                else:
+                    st.warning("您还没有创建任何策略，请先去策略管理新建。")
+                    selected_input_strat_name = None
+
+                # 2. 选日期和资产
                 input_date = st.date_input("日期", datetime.now())
                 input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
                 
-                current_bench_code = next((s[2] for s in user_strats if s[1] == st.session_state.current_strategy_name), "SHSE.000300")
-                current_bench_name = next((k for k, v in BENCHMARKS.items() if v == current_bench_code), "沪深300")
+                # 3. 根据选中的策略自动匹配基准
+                target_bench_code = "SHSE.000300" # 默认
+                target_strat_id = st.session_state.current_strategy_id
+                
+                if selected_input_strat_name:
+                    for s in user_strats:
+                        if s[1] == selected_input_strat_name:
+                            target_strat_id = s[0]
+                            target_bench_code = s[2]
+                            break
+                            
+                current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
+                
+                # 允许用户手动修改对比基准（比如想临时对比另一个指数）
                 selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
-                bench_code = BENCHMARKS[selected_bench_name]
+                final_bench_code = BENCHMARKS[selected_bench_name]
                 
                 if st.form_submit_button("提交数据", type="primary"):
-                    success, msg = insert_manual_nav(st.session_state.current_strategy_id, bench_code, input_date, input_nav)
-                    if success:
-                        st.success(msg)
-                        time.sleep(1)
-                        st.rerun()
+                    if not selected_input_strat_name:
+                        st.error("请先选择策略！")
                     else:
-                        st.error(msg)
+                        success, msg = insert_manual_nav(target_strat_id, final_bench_code, input_date, input_nav)
+                        if success:
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(msg)
         
         with tab3:
             st.markdown(f"#### 修改或删除历史数据 (策略: {st.session_state.current_strategy_name})")
