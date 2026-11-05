@@ -223,7 +223,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS
+# 4. 全局 CSS (修复输入框和日期组件)
 # ==========================================
 st.markdown("""
     <style>
@@ -282,6 +282,41 @@ st.markdown("""
             background-color: #333333 !important;
             color: #00ffcc !important;
             font-weight: bold;
+        }
+
+        /* 👇👇👇 修复 日期输入框 和 文本/数字输入框 */
+        
+        /* 日期选择器容器 */
+        div[data-testid="stDateInput"] > div {
+            background-color: #1e1e24 !important;
+            border-color: #333 !important;
+        }
+        /* 日期选择器文字 */
+        div[data-testid="stDateInput"] input {
+            color: #e0e0e0 !important;
+        }
+        /* 日期选择器日历图标 */
+        div[data-testid="stDateInput"] svg {
+            fill: #a0a0a0 !important;
+        }
+        
+        /* 日历弹窗面板 */
+        div[data-baseweb="popover"] div[data-baseweb="calendar"] {
+            background-color: #1e1e24 !important;
+        }
+        div[data-baseweb="popover"] div[data-baseweb="calendar"] * {
+            color: #e0e0e0 !important;
+        }
+        div[data-baseweb="popover"] div[data-baseweb="calendar"] button:hover {
+            background-color: #333333 !important;
+        }
+
+        /* 文本输入框和数字输入框 */
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stNumberInput"] input {
+            background-color: #1e1e24 !important;
+            color: #e0e0e0 !important;
+            border-color: #333 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -794,7 +829,6 @@ elif nav_choice == "我的":
             
             try:
                 conn = get_db_connection()
-                # 只查询当前用户的策略
                 query_strats = """
                     SELECT s.id, s.name, u.username 
                     FROM dbo.strategies s
