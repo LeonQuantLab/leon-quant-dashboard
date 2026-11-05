@@ -813,16 +813,7 @@ elif nav_choice == "我的":
         tab1, tab2, tab3 = st.tabs(["📊 策略管理", "📝 录入数据", "📜 历史数据编辑"])
         
         with tab1:
-            st.markdown("#### 切换或新建策略")
-            if strat_names:
-                selected_name = st.selectbox("当前选中策略", strat_names, index=strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0)
-                for s in user_strats:
-                    if s[1] == selected_name:
-                        st.session_state.current_strategy_id = s[0]
-                        st.session_state.current_strategy_name = s[1]
-                        break
-            
-            st.divider()
+            st.markdown("#### 新建策略")
             with st.form("new_strat_form_tab"):
                 new_strat_name = st.text_input("新策略名称")
                 new_bench = st.selectbox("初始基准", list(BENCHMARKS.keys()))
@@ -830,7 +821,7 @@ elif nav_choice == "我的":
                     if new_strat_name:
                         if create_new_strategy(st.session_state.user_id, new_strat_name, BENCHMARKS[new_bench]):
                             st.session_state.current_strategy_name = new_strat_name
-                            st.success("创建成功！已为您切换。")
+                            st.success("创建成功！")
                             time.sleep(1)
                             st.rerun()
             
@@ -1027,11 +1018,9 @@ elif nav_choice == "我的":
             except Exception as e:
                 st.error(f"策略对比表加载失败: {e}")
 
-        # 👇 【核心修改】录入数据页面，添加策略选择
         with tab2:
             st.markdown("#### 录入今日数据")
             with st.form("manual_nav_input_tab"):
-                # 1. 先选策略
                 if strat_names:
                     default_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
                     selected_input_strat_name = st.selectbox("选择要录入的策略", strat_names, index=default_idx)
@@ -1039,12 +1028,10 @@ elif nav_choice == "我的":
                     st.warning("您还没有创建任何策略，请先去策略管理新建。")
                     selected_input_strat_name = None
 
-                # 2. 选日期和资产
                 input_date = st.date_input("日期", datetime.now())
                 input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
                 
-                # 3. 根据选中的策略自动匹配基准
-                target_bench_code = "SHSE.000300" # 默认
+                target_bench_code = "SHSE.000300"
                 target_strat_id = st.session_state.current_strategy_id
                 
                 if selected_input_strat_name:
@@ -1055,8 +1042,6 @@ elif nav_choice == "我的":
                             break
                             
                 current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
-                
-                # 允许用户手动修改对比基准（比如想临时对比另一个指数）
                 selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
                 final_bench_code = BENCHMARKS[selected_bench_name]
                 
@@ -1073,33 +1058,46 @@ elif nav_choice == "我的":
                             st.error(msg)
         
         with tab3:
-            st.markdown(f"#### 修改或删除历史数据 (策略: {st.session_state.current_strategy_name})")
-            raw_df = load_raw_nav_data(st.session_state.current_strategy_id)
-            if raw_df.empty:
-                st.info("暂无历史数据")
+            st.markdown("#### 修改或删除历史数据")
+            if strat_names:
+                # 让用户在这里选择要编辑哪个策略
+                default_edit_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
+                edit_strat_name = st.selectbox("选择要编辑的策略", strat_names, index=default_edit_idx)
+                target_edit_id = None
+                for s in user_strats:
+                    if s[1] == edit_strat_name:
+                        target_edit_id = s[0]
+                        break
+                
+                if target_edit_id:
+                    raw_df = load_raw_nav_data(target_edit_id)
+                    if raw_df.empty:
+                        st.info("该策略暂无历史数据")
+                    else:
+                        edit_df = raw_df.copy()
+                        edit_df = edit_df.rename(columns={"trade_date": "日期", "strategy_nav": "总资产", "benchmark_nav": "基准点位"})
+                        edit_df = edit_df[["日期", "总资产", "基准点位"]]
+                        
+                        edited_result = st.data_editor(edit_df, hide_index=True, use_container_width=True, num_rows="dynamic")
+                        
+                        if st.button("💾 保存修改并刷新", use_container_width=True, type="primary"):
+                            try:
+                                conn = get_db_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (target_edit_id,))
+                                for _, row in edited_result.iterrows():
+                                    if pd.notna(row['日期']) and pd.notna(row['总资产']) and pd.notna(row['基准点位']):
+                                        cursor.execute(
+                                            "INSERT INTO dbo.nav_history (strategy_id, trade_date, strategy_nav, benchmark_nav) VALUES (%s, %s, %s, %s)",
+                                            (target_edit_id, str(row['日期']), float(row['总资产']), float(row['基准点位']))
+                                        )
+                                conn.commit()
+                                conn.close()
+                                load_raw_nav_data.clear()
+                                st.success("✅ 保存成功！")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"保存失败: {e}")
             else:
-                edit_df = raw_df.copy()
-                edit_df = edit_df.rename(columns={"trade_date": "日期", "strategy_nav": "总资产", "benchmark_nav": "基准点位"})
-                edit_df = edit_df[["日期", "总资产", "基准点位"]]
-                
-                edited_result = st.data_editor(edit_df, hide_index=True, use_container_width=True, num_rows="dynamic")
-                
-                if st.button("💾 保存修改并刷新", use_container_width=True, type="primary"):
-                    try:
-                        conn = get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (st.session_state.current_strategy_id,))
-                        for _, row in edited_result.iterrows():
-                            if pd.notna(row['日期']) and pd.notna(row['总资产']) and pd.notna(row['基准点位']):
-                                cursor.execute(
-                                    "INSERT INTO dbo.nav_history (strategy_id, trade_date, strategy_nav, benchmark_nav) VALUES (%s, %s, %s, %s)",
-                                    (st.session_state.current_strategy_id, str(row['日期']), float(row['总资产']), float(row['基准点位']))
-                                )
-                        conn.commit()
-                        conn.close()
-                        load_raw_nav_data.clear()
-                        st.success("✅ 保存成功！")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"保存失败: {e}")
+                st.warning("您还没有创建任何策略。")
