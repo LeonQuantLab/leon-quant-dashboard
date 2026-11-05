@@ -578,8 +578,7 @@ if "view_strat_id" in st.query_params:
         
         if res:
             strat_name_view, author_view = res[0], res[1]
-            # 返回按钮更明显
-            st.markdown("<br>", unsafe_allow_html=True)
+            # 返回按钮
             if st.button("⬅️ 返回上一页", type="secondary", use_container_width=True):
                 st.query_params.clear()
                 st.rerun()
@@ -606,7 +605,7 @@ if nav_choice == "首页":
 
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。💡 *点击青绿色的策略名称可查看详情*。")
+    st.markdown("展示所有已入库策略的历史表现。💡 *点击表格任意一行可查看详情*。")
     st.divider()
 
     col_main = st.container()
@@ -728,6 +727,11 @@ elif nav_choice == "排行榜":
                                         </svg>`;
                             }}
 
+                            function goToStrategy(id) {{
+                                let baseUrl = window.top.location.origin + window.top.location.pathname;
+                                window.top.location.href = baseUrl + "?view_strat_id=" + id;
+                            }}
+
                             function renderTable() {{
                                 let tbody = document.getElementById("table-body");
                                 tbody.innerHTML = "";
@@ -742,11 +746,12 @@ elif nav_choice == "排行榜":
                                     let svgContent = generateSparkline(item.spark);
                                     
                                     let tr = document.createElement("tr");
+                                    tr.style.cursor = "pointer";
+                                    tr.onclick = function() {{ goToStrategy(item.id); }};
                                     tr.innerHTML = `
                                         <td>
                                             <div class="sys-name">
-                                                <!-- 增加 target="_top" -->
-                                                <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                <span style="color: #00ffcc; text-decoration: underline;">${{item.name}}</span>
                                             </div>
                                             <div class="sys-author">${{item.author}}</div>
                                         </td>
@@ -852,7 +857,7 @@ elif nav_choice == "我的":
             
             st.divider()
             st.markdown("### 📊 我的策略表现对比")
-            st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
+            st.markdown("💡 *点击表格任意一行可查看详情*。")
             
             try:
                 conn = get_db_connection()
@@ -975,6 +980,11 @@ elif nav_choice == "我的":
                                             </svg>`;
                                 }}
 
+                                function goToStrategy(id) {{
+                                    let baseUrl = window.top.location.origin + window.top.location.pathname;
+                                    window.top.location.href = baseUrl + "?view_strat_id=" + id;
+                                }}
+
                                 function renderTable() {{
                                     let tbody = document.getElementById("table-body");
                                     tbody.innerHTML = "";
@@ -989,11 +999,12 @@ elif nav_choice == "我的":
                                         let svgContent = generateSparkline(item.spark);
                                         
                                         let tr = document.createElement("tr");
+                                        tr.style.cursor = "pointer";
+                                        tr.onclick = function() {{ goToStrategy(item.id); }};
                                         tr.innerHTML = `
                                             <td>
                                                 <div class="sys-name">
-                                                    <!-- 增加 target="_top" -->
-                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                    <span style="color: #00ffcc; text-decoration: underline;">${{item.name}}</span>
                                                 </div>
                                                 <div class="sys-author">${{item.author}}</div>
                                             </td>
