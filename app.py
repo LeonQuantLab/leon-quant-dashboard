@@ -123,6 +123,7 @@ def delete_strategy(strategy_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # 先删净值历史，再删策略本身
         cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (strategy_id,))
         cursor.execute("DELETE FROM dbo.strategies WHERE id = %s", (strategy_id,))
         conn.commit()
@@ -603,6 +604,19 @@ if st.session_state.auth_action == "login":
         st.rerun()
     st.stop()
 
+# 👇 拦截 URL 里的删除策略请求
+if "delete_strat_id" in st.query_params:
+    del_id = int(st.query_params["delete_strat_id"])
+    if delete_strategy(del_id):
+        st.success("✅ 策略已成功删除！")
+        # 如果删的是当前展示的策略，重置 session_state
+        if st.session_state.current_strategy_id == del_id:
+            st.session_state.current_strategy_id = None
+            st.session_state.current_strategy_name = None
+        time.sleep(1)
+    st.query_params.clear()
+    st.rerun()
+
 if nav_choice == "首页":
     render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
     
@@ -860,25 +874,6 @@ elif nav_choice == "我的":
                         st.rerun()
             
             st.divider()
-            st.markdown("### 🗑️ 管理已有策略")
-            if strat_names:
-                to_delete_name = st.selectbox("选择要删除的策略", ["(不删除)"] + strat_names)
-                if to_delete_name != "(不删除)":
-                    if st.button(f"确认删除策略【{to_delete_name}】", type="secondary"):
-                        target_del_id = None
-                        for s in user_strats:
-                            if s[1] == to_delete_name:
-                                target_del_id = s[0]
-                                break
-                        if target_del_id:
-                            if delete_strategy(target_del_id):
-                                st.success("删除成功！")
-                                time.sleep(1)
-                                st.rerun()
-            else:
-                st.info("您目前没有创建任何策略。")
-
-            st.divider()
             st.markdown("### 📊 我的策略表现对比")
             st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
             
@@ -967,6 +962,7 @@ elif nav_choice == "我的":
                                             <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
                                             <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
                                             <th>收益走势 (历史)</th>
+                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="table-body">
@@ -1032,6 +1028,9 @@ elif nav_choice == "我的":
                                                 <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
                                                 <td>${{item.days}} 天</td>
                                                 <td>${{svgContent}}</td>
+                                                <td>
+                                                    <a href="?delete_strat_id=${{item.id}}" target="_top" onclick="return confirm('确定要删除策略【${{item.name}}】及其所有数据吗？此操作不可恢复！');" style="color: #ff4b4b; text-decoration: underline; cursor: pointer; font-size: 13px;">删除</a>
+                                                </td>
                                             `;
                                             tbody.appendChild(tr);
                                         }});
