@@ -607,13 +607,20 @@ if st.session_state.auth_action == "login":
 if "delete_strat_id" in st.query_params:
     del_id = int(st.query_params["delete_strat_id"])
     if delete_strategy(del_id):
-        st.success("✅ 策略已成功删除！")
+        # 先清除参数，防止多次触发
+        st.query_params.clear()
+        # 检查并更新 session_state
         if st.session_state.current_strategy_id == del_id:
             st.session_state.current_strategy_id = None
             st.session_state.current_strategy_name = None
+        st.success("✅ 策略已成功删除！")
         time.sleep(1)
-    st.query_params.clear()
-    st.rerun()
+        st.rerun()
+    else:
+        st.query_params.clear()
+        st.error("删除失败。")
+        time.sleep(1)
+        st.rerun()
 
 if nav_choice == "首页":
     render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
@@ -861,7 +868,6 @@ elif nav_choice == "我的":
                 if new_strat_name:
                     if create_new_strategy(st.session_state.user_id, new_strat_name, BENCHMARKS[new_bench]):
                         st.session_state.current_strategy_name = new_strat_name
-                        # 重新获取以更新 ID
                         user_strats = get_user_strategies(st.session_state.user_id)
                         for s in user_strats:
                             if s[1] == new_strat_name:
@@ -880,7 +886,6 @@ elif nav_choice == "我的":
             else:
                 try:
                     conn = get_db_connection()
-                    # 👇 去掉了 EXISTS 条件，拉取所有策略
                     query_strats = """
                         SELECT s.id, s.name, u.username 
                         FROM dbo.strategies s
@@ -902,7 +907,6 @@ elif nav_choice == "我的":
                             
                             df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
                             
-                            # 👇 处理有数据的策略
                             if len(df_nav) > 1:
                                 navs = df_nav['strategy_nav'].values
                                 days = len(df_nav)
@@ -924,7 +928,6 @@ elif nav_choice == "我的":
                                     "days": days,
                                     "spark": sparkline_data
                                 })
-                            # 👇 处理没数据（白板）的策略
                             else:
                                 rank_data.append({
                                     "id": s_id,
@@ -941,7 +944,6 @@ elif nav_choice == "我的":
                         if not rank_data:
                             st.info("暂无足够的数据生成报表。")
                         else:
-                            # 重新排序：有收益的按收益排，没收益的排最后
                             def sort_key(x):
                                 return x['gain'] if x['gain'] is not None else -99999
                             rank_data = sorted(rank_data, key=sort_key, reverse=True)
@@ -1018,6 +1020,15 @@ elif nav_choice == "我的":
                                                 </svg>`;
                                     }}
 
+                                    // 👇 核心修复：用 JS 函数代替 a 标签的跳转，彻底绕过 iframe 安全限制
+                                    function deleteStrat(id, name) {{
+                                        if (confirm('确定要删除策略【' + name + '】及其所有数据吗？此操作不可恢复！')) {{
+                                            // 构造完整的绝对 URL
+                                            var baseUrl = window.top.location.protocol + "//" + window.top.location.host + window.top.location.pathname;
+                                            window.top.location.href = baseUrl + "?delete_strat_id=" + id;
+                                        }}
+                                    }}
+
                                     function renderTable() {{
                                         let tbody = document.getElementById("table-body");
                                         tbody.innerHTML = "";
@@ -1031,9 +1042,7 @@ elif nav_choice == "我的":
                                             let drawdownStr = item.drawdown !== null ? item.drawdown.toFixed(2) + "%" : "-";
                                             let daysStr = item.days + " 天";
                                             
-                                            // 如果没有数据，指标直接变灰
                                             let textStyle = item.gain === null ? 'class="empty-data"' : '';
-                                            // 👇 修复了 JS 中单引号导致的 Python f-string 解析报错（改成了双大括号）
                                             let gainTd = item.gain !== null ? `<td class="${{gainClass}}">${{gainStr}}</td>` : `<td class="empty-data">-</td>`;
                                             let annualTd = item.annualized !== null ? `<td class="${{annualClass}}">${{annualStr}}</td>` : `<td class="empty-data">-</td>`;
                                             let drawdownTd = item.drawdown !== null ? `<td class="negative">${{drawdownStr}}</td>` : `<td class="empty-data">-</td>`;
@@ -1054,7 +1063,8 @@ elif nav_choice == "我的":
                                                 <td>${{daysStr}}</td>
                                                 <td>${{svgContent}}</td>
                                                 <td>
-                                                    <a href="?delete_strat_id=${{item.id}}" target="_top" onclick="return confirm('确定要删除策略【${{item.name}}】及其所有数据吗？此操作不可恢复！');" style="color: #ff4b4b; text-decoration: underline; cursor: pointer; font-size: 13px;">删除</a>
+                                                    <!-- 触发 JS 删除 -->
+                                                    <span onclick="deleteStrat(${{item.id}}, '${{item.name.replace(/'/g, "\\'")}}')" style="color: #ff4b4b; text-decoration: underline; cursor: pointer; font-size: 13px;">删除</span>
                                                 </td>
                                             `;
                                             tbody.appendChild(tr);
@@ -1082,7 +1092,6 @@ elif nav_choice == "我的":
                                             let valA = a[key];
                                             let valB = b[key];
                                             
-                                            // 处理空值（把它们排在最后）
                                             if (valA === null && valB === null) return 0;
                                             if (valA === null) return isAscending ? 1 : -1;
                                             if (valB === null) return isAscending ? -1 : 1;
