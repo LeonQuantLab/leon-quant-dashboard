@@ -223,7 +223,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (暗黑主题)
+# 4. 全局 CSS (暴力暗黑化)
 # ==========================================
 st.markdown("""
     <style>
@@ -250,7 +250,11 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* 统一暗黑输入框样式 */
+        /* ==========================================
+           暴力重写所有输入框和弹窗样式
+           ========================================== */
+        
+        /* 1. 普通输入框（文本、数字、日期）外壳 */
         div[data-testid="stTextInput"] > div,
         div[data-testid="stNumberInput"] > div,
         div[data-testid="stDateInput"] > div {
@@ -258,6 +262,14 @@ st.markdown("""
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
+        /* 输入框聚焦时的边框颜色 */
+        div[data-testid="stTextInput"] > div:focus-within,
+        div[data-testid="stNumberInput"] > div:focus-within,
+        div[data-testid="stDateInput"] > div:focus-within {
+            border-color: #ff4b4b !important;
+        }
+
+        /* 2. 内部输入框（透明背景、亮色文字） */
         div[data-testid="stTextInput"] input,
         div[data-testid="stNumberInput"] input,
         div[data-testid="stDateInput"] input {
@@ -265,6 +277,8 @@ st.markdown("""
             color: #e0e0e0 !important;
             -webkit-text-fill-color: #e0e0e0 !important;
         }
+
+        /* 3. 数字输入框的加减按钮 */
         div[data-testid="stNumberInput"] button {
             background-color: transparent !important;
             border-left: 1px solid #333 !important;
@@ -274,13 +288,15 @@ st.markdown("""
             background-color: #333 !important;
             color: #00ffcc !important;
         }
+
+        /* 4. 所有输入框内的图标 (如日历图标) */
         div[data-testid="stTextInput"] svg,
         div[data-testid="stNumberInput"] svg,
         div[data-testid="stDateInput"] svg {
             fill: #a0a0a0 !important;
         }
 
-        /* Selectbox 下拉框 */
+        /* 5. Selectbox 下拉框 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
@@ -294,42 +310,43 @@ st.markdown("""
             fill: #a0a0a0 !important;
         }
 
-        /* 弹窗样式 (下拉菜单、日历) */
+        /* 6. 下拉菜单弹窗 */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-        div[data-baseweb="popover"] ul {
-            background-color: #1e1e24 !important;
-        }
-        div[data-baseweb="popover"] li {
-            background-color: #1e1e24 !important;
-            color: #e0e0e0 !important;
-        }
-        div[data-baseweb="popover"] li:hover {
-            background-color: #333333 !important;
-            color: #00ffcc !important;
-        }
-        div[data-baseweb="popover"] li[aria-selected="true"] {
-            background-color: #333333 !important;
-            color: #00ffcc !important;
-            font-weight: bold;
-        }
+        div[data-baseweb="popover"] ul { background-color: #1e1e24 !important; }
+        div[data-baseweb="popover"] li { background-color: #1e1e24 !important; color: #e0e0e0 !important; }
+        div[data-baseweb="popover"] li:hover { background-color: #333333 !important; color: #00ffcc !important; }
+        div[data-baseweb="popover"] li[aria-selected="true"] { background-color: #333333 !important; color: #00ffcc !important; font-weight: bold; }
+
+        /* 7. 【核心修复】日历弹窗面板 - 暴力覆盖所有内部元素 */
         div[data-baseweb="calendar"] {
             background-color: #1e1e24 !important;
+            border: 1px solid #333 !important;
         }
-        div[data-baseweb="calendar"] * {
+        /* 日历内的所有 div 背景色变黑 */
+        div[data-baseweb="calendar"] div {
+            background-color: transparent !important;
             color: #e0e0e0 !important;
         }
-        div[data-baseweb="calendar"] div[role="button"]:hover {
+        /* 日历内的按钮悬停效果 */
+        div[data-baseweb="calendar"] button {
+            color: #e0e0e0 !important;
+            background-color: transparent !important;
+        }
+        div[data-baseweb="calendar"] button:hover {
             background-color: #333333 !important;
             border-radius: 5px !important;
         }
+        /* 选中的日期 */
         div[data-baseweb="calendar"] div[aria-selected="true"] {
             background-color: #ff4b4b !important;
             color: white !important;
         }
+        /* 隐藏星期文字上的下划线等干扰 */
+        div[data-baseweb="calendar"] > div > div:first-child { background-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
 
