@@ -223,7 +223,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (终极暴力暗黑化，专治各种不服)
+# 4. 全局 CSS (地狱级暗黑强化)
 # ==========================================
 st.markdown("""
     <style>
@@ -241,28 +241,35 @@ st.markdown("""
         }
 
         /* ==========================================
-           强制覆盖所有输入框（无论是否在 Form 中）
+           最强力打击：针对 BaseWeb 所有容器的强制覆写
            ========================================== */
            
-        /* 1. 强制输入框的外壳为暗色 */
+        /* 1. 表单本身背景 */
+        [data-testid="stForm"] {
+            background-color: #0e1117 !important; 
+            border: 1px solid #333 !important;
+            padding: 20px !important;
+            border-radius: 10px !important;
+        }
+
+        /* 2. 不管三七二十一，干掉所有输入框外层的白底 */
         div[data-baseweb="input"], 
         div[data-baseweb="base-input"],
-        div[data-testid="stDateInput"] > div,
-        div[data-testid="stNumberInput"] > div {
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
-            border: 1px solid #555 !important; /* 边框调亮一点以便看清 */
-            border-radius: 5px !important;
+            border-color: #555 !important; /* 增加边框可见度 */
             box-shadow: none !important;
         }
 
-        /* 2. 强制输入框本身的文字颜色为白色，并去除背景 */
+        /* 3. 所有 input 标签，透明背景、亮白文字 */
         input {
             background-color: transparent !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }
 
-        /* 3. 数字输入框的加减按钮 */
+        /* 4. 数字输入框的加减按钮 */
         div[data-testid="stNumberInput"] button {
             background-color: transparent !important;
             border-left: 1px solid #555 !important;
@@ -273,40 +280,36 @@ st.markdown("""
             color: #00ffcc !important;
         }
 
-        /* 4. 图标颜色（日历、下拉箭头） */
-        svg {
-            fill: #ffffff !important;
-            color: #ffffff !important;
-        }
-
-        /* 5. Selectbox 下拉框容器 */
-        div[data-baseweb="select"] > div {
-            background-color: #1e1e24 !important;
-            border: 1px solid #555 !important;
-            border-radius: 5px !important;
-        }
+        /* 5. Selectbox 文字及图标 */
         div[data-baseweb="select"] span, 
         div[data-baseweb="select"] div {
             color: #ffffff !important;
         }
+        div[data-testid="stSelectbox"] svg, 
+        div[data-testid="stDateInput"] svg {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+        }
 
-        /* 6. 下拉菜单弹窗 */
+        /* 6. 下拉菜单和日历弹窗 */
+        div[data-baseweb="calendar"], 
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
-            border: 1px solid #555 !important;
+        }
+        div[data-baseweb="calendar"] div, 
+        div[data-baseweb="popover"] li {
+            color: #ffffff !important;
+            background-color: transparent !important;
+        }
+        div[data-baseweb="popover"] li:hover,
+        div[data-baseweb="calendar"] div[role="button"]:hover {
+            background-color: #333333 !important;
             border-radius: 5px !important;
         }
-        div[data-baseweb="popover"] ul { background-color: #1e1e24 !important; }
-        div[data-baseweb="popover"] li { background-color: #1e1e24 !important; color: #ffffff !important; }
-        div[data-baseweb="popover"] li:hover { background-color: #333333 !important; color: #00ffcc !important; }
-        div[data-baseweb="popover"] li[aria-selected="true"] { background-color: #333333 !important; color: #00ffcc !important; font-weight: bold; }
-
-        /* 7. 日历弹窗内部 */
-        div[data-baseweb="calendar"] { background-color: #1e1e24 !important; }
-        div[data-baseweb="calendar"] div { background-color: transparent !important; color: #ffffff !important; }
-        div[data-baseweb="calendar"] button { color: #ffffff !important; }
-        div[data-baseweb="calendar"] button:hover { background-color: #333333 !important; border-radius: 5px !important; }
-        div[data-baseweb="calendar"] div[aria-selected="true"] { background-color: #ff4b4b !important; color: white !important; }
+        div[data-baseweb="calendar"] div[aria-selected="true"] {
+            background-color: #ff4b4b !important;
+            color: white !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
