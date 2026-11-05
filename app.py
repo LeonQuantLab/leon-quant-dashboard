@@ -74,7 +74,6 @@ def login_user(username, password):
         conn.close()
         return user[0] if user else None
     except Exception as e:
-        st.error(f"登录失败: {e}")
         return None
 
 def register_user(username, password):
@@ -82,6 +81,13 @@ def register_user(username, password):
         conn = get_db_connection()
         cursor = conn.cursor()
         pwd_hash = hash_password(password)
+        
+        # 先查一下有没有重名
+        cursor.execute("SELECT id FROM dbo.users WHERE username = %s", (username,))
+        if cursor.fetchone():
+            conn.close()
+            return False, "该用户名已被注册，请换一个试试！"
+
         cursor.execute("INSERT INTO dbo.users (username, password_hash) VALUES (%s, %s)", (username, pwd_hash))
         conn.commit()
         
@@ -90,10 +96,11 @@ def register_user(username, password):
         cursor.execute("INSERT INTO dbo.strategies (user_id, name, benchmark) VALUES (%s, %s, %s)", (user_id, f"{username}的默认策略", "SHSE.000300"))
         conn.commit()
         conn.close()
-        return True
+        return True, "注册成功！"
+    except pymssql.IntegrityError:
+        return False, "该用户名已被注册，请换一个试试！"
     except Exception as e:
-        st.error(f"注册失败: {e}")
-        return False
+        return False, f"注册失败: {e}"
 
 def get_user_strategies(user_id):
     try:
@@ -208,6 +215,10 @@ if "logged_in" not in st.session_state:
 if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
+# 👇 新增：绑定顶部导航栏的状态，用于跳转
+if "current_nav" not in st.session_state:
+    st.session_state.current_nav = "首页"
+
 # ==========================================
 # 4. 全局 CSS
 # ==========================================
@@ -234,11 +245,9 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* 👇 【核心修复】隐藏标题旁边的锚点链接 🔗 */
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
             display: none !important;
         }
-        /* 针对 Streamlit 特定的锚点结构 */
         [data-testid="stHeaderActionElements"] {
             display: none !important;
         }
@@ -254,11 +263,13 @@ with col_logo:
     st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化实验室</h2>", unsafe_allow_html=True)
 
 with col_nav:
+    menu_options = ["首页", "排行榜", "加入我们", "我的"]
+    # 👇 使用 session_state 控制默认选中的选项
     nav_choice = option_menu(
         menu_title=None,
-        options=["首页", "排行榜", "加入我们", "我的"],
+        options=menu_options,
         icons=["house", "trophy", "person-plus", "person-fill"],
-        default_index=0,
+        default_index=menu_options.index(st.session_state.current_nav),
         orientation="horizontal",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent", "width": "100%"},
@@ -267,6 +278,9 @@ with col_nav:
             "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
+    # 👇 同步状态：如果用户手动点击了菜单，更新 session_state
+    if nav_choice != st.session_state.current_nav:
+        st.session_state.current_nav = nav_choice
 
 with col_user:
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
@@ -282,6 +296,7 @@ with col_user:
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
+                st.session_state.current_nav = "首页" # 👈 退出登录后返回首页
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -428,6 +443,9 @@ if st.session_state.auth_action == "login":
                 st.session_state.username = u
                 st.session_state.user_id = uid
                 st.session_state.auth_action = "none"
+                # 👇 登录成功也自动跳转到“我的”
+                st.session_state.current_nav = "我的" 
+                
                 strats = get_user_strategies(uid)
                 if strats:
                     st.session_state.current_strategy_id = strats[0][0]
@@ -442,18 +460,26 @@ if st.session_state.auth_action == "login":
         if st.button("注册并登录", type="primary"):
             if len(ru) < 3 or len(rp) < 6:
                 st.warning("用户名需大于3位，密码需大于6位！")
-            elif register_user(ru, rp):
-                uid = login_user(ru, rp)
-                st.session_state.logged_in = True
-                st.session_state.username = ru
-                st.session_state.user_id = uid
-                st.session_state.auth_action = "none"
-                st.success("注册成功！")
-                time.sleep(1)
-                st.rerun()
+            else:
+                success, msg = register_user(ru, rp)
+                if success:
+                    uid = login_user(ru, rp)
+                    st.session_state.logged_in = True
+                    st.session_state.username = ru
+                    st.session_state.user_id = uid
+                    st.session_state.auth_action = "none"
+                    # 👇 注册成功后，自动将导航状态改为“我的”
+                    st.session_state.current_nav = "我的" 
+                    
+                    st.success(msg)
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(msg)
 
     if st.button("⬅️ 取消登录，返回首页"):
         st.session_state.auth_action = "none"
+        st.session_state.current_nav = "首页"
         st.rerun()
     st.stop()
 
