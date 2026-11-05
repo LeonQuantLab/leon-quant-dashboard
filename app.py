@@ -209,7 +209,7 @@ if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
 # ==========================================
-# 4. 全局 CSS
+# 4. 全局 CSS (修复版，解决排版散架问题)
 # ==========================================
 st.markdown("""
     <style>
@@ -220,18 +220,37 @@ st.markdown("""
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
         /* 隐藏顶部留白，让导航栏更靠上 */
-        .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+        .block-container { 
+            padding-top: 1rem !important; 
+            padding-bottom: 2rem !important; 
+            max-width: 95% !important; 
+        }
+
+        /* 强制顶部三列垂直居中，且高度一致 */
+        div[data-testid="stHorizontalBlock"] > div {
+            display: flex;
+            align-items: center;
+        }
+
+        /* 修复顶部按钮的宽度和样式，防止霸屏 */
+        .top-nav-btn button {
+            width: auto !important;
+            padding: 0.3rem 1.2rem !important;
+            height: 38px !important;
+            border-radius: 5px !important;
+            font-size: 14px !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. 顶部导航栏渲染
+# 5. 顶部导航栏渲染 (修复版)
 # ==========================================
-# 三列分配：Logo(2份) | 导航(4份) | 登录状态(2份)
-col_logo, col_nav, col_user = st.columns([2, 4, 2.5])
+# 比例调整：Logo(2) | 导航(4.5) | 登录状态(3.5)
+col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5])
 
 with col_logo:
-    st.markdown("<h2 style='color: #00ffcc; margin-top: 5px;'>📈 Leon量化终端</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化终端</h2>", unsafe_allow_html=True)
 
 with col_nav:
     nav_choice = option_menu(
@@ -241,30 +260,39 @@ with col_nav:
         default_index=0,
         orientation="horizontal",
         styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#a0a0a0", "font-size": "16px"},
-            "nav-link": {"font-size": "16px", "text-align": "center", "margin":"0px", "--hover-color": "#1e1e24"},
-            "nav-link-selected": {"background-color": "#ff4b4b", "color": "white"},
+            "container": {"padding": "0!important", "background-color": "transparent", "width": "100%"},
+            "icon": {"color": "#a0a0a0", "font-size": "15px"},
+            "nav-link": {"font-size": "15px", "text-align": "center", "margin": "0px", "--hover-color": "#1e1e24"},
+            "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
 
 with col_user:
-    st.markdown("<div style='text-align: right;'>", unsafe_allow_html=True)
+    # 用两列把右侧内容推到最右边
+    sub_col1, sub_col2 = st.columns([2, 1.2])
+    
     if st.session_state.logged_in:
-        st.markdown(f"<span style='font-weight: bold; color: #00ffcc;'>👤 {st.session_state.username}</span>", unsafe_allow_html=True)
-        if st.button("退出登录", key="logout_btn", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.username = "Leon量化工作室实盘"
-            st.session_state.user_id = 1
-            st.session_state.current_strategy_id = 1
-            st.session_state.current_strategy_name = "Leon大A动量策略"
-            st.rerun()
+        with sub_col1:
+            st.markdown(f"<p style='text-align: right; color: #00ffcc; font-weight: bold; margin: 0;'>👤 {st.session_state.username}</p>", unsafe_allow_html=True)
+        with sub_col2:
+            st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
+            if st.button("退出登录", key="logout_btn"):
+                st.session_state.logged_in = False
+                st.session_state.username = "Leon量化工作室实盘"
+                st.session_state.user_id = 1
+                st.session_state.current_strategy_id = 1
+                st.session_state.current_strategy_name = "Leon大A动量策略"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.markdown("<span style='color: #a0a0a0;'>未登录 (演示模式)</span>", unsafe_allow_html=True)
-        if st.button("🔑 登录 / 注册", key="login_btn", type="primary", use_container_width=True):
-            st.session_state.auth_action = "login"
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+        with sub_col1:
+            st.markdown("<p style='text-align: right; color: #a0a0a0; margin: 0;'>未登录 (演示)</p>", unsafe_allow_html=True)
+        with sub_col2:
+            st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
+            if st.button("🔑 登录 / 注册", key="login_btn", type="primary"):
+                st.session_state.auth_action = "login"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
