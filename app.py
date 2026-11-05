@@ -362,9 +362,10 @@ with col_nav:
         }
     )
     
-    # 如果用户手动切了导航，清空 URL 上的策略详情参数
-    if "view_strat_id" in st.query_params:
+    # 如果用户主动点击了导航栏，且当前有详情页参数，则退出详情页并清空参数
+    if nav_choice != "首页" and "view_strat_id" in st.query_params:
         st.query_params.clear()
+        st.rerun()
 
 with col_user:
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
@@ -511,9 +512,42 @@ def render_dashboard(strategy_id, strategy_name, author_name):
     st.divider()
     st.caption("⚠️ 免责声明：历史业绩不代表未来表现。")
 
+
 # ==========================================
 # 7. 路由分发
 # ==========================================
+# 优先拦截 URL 上的策略详情参数
+if "view_strat_id" in st.query_params:
+    strat_id_view = int(st.query_params["view_strat_id"])
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT s.name, u.username FROM dbo.strategies s JOIN dbo.users u ON s.user_id = u.id WHERE s.id = %s", (strat_id_view,))
+        res = cursor.fetchone()
+        conn.close()
+        
+        if res:
+            strat_name_view, author_view = res[0], res[1]
+            if st.button("⬅️ 返回上一页", type="secondary", use_container_width=True):
+                st.query_params.clear()
+                # 清除参数后通过修改 nav_menu 让界面回到首页（或者保持原样）
+                st.session_state.nav_menu = "首页"
+                st.rerun()
+            st.divider()
+            render_dashboard(strat_id_view, strat_name_view, author_view)
+            st.stop() # 拦截渲染，不再往下执行
+        else:
+            st.error("未找到该策略，可能已被删除。")
+            if st.button("返回首页"):
+                st.query_params.clear()
+                st.session_state.nav_menu = "首页"
+                st.rerun()
+            st.stop()
+    except Exception as e:
+        st.error(f"加载策略失败: {e}")
+        st.stop()
+
+# 处理登录/注册动作
 if st.session_state.auth_action == "login":
     st.title("🔒 身份验证")
     tab1, tab2 = st.tabs(["登录", "注册"])
@@ -566,38 +600,8 @@ if st.session_state.auth_action == "login":
         st.rerun()
     st.stop()
 
-# 👇 【超链接直达核心】拦截 URL 里的策略详情查看请求
-if "view_strat_id" in st.query_params:
-    strat_id_view = int(st.query_params["view_strat_id"])
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT s.name, u.username FROM dbo.strategies s JOIN dbo.users u ON s.user_id = u.id WHERE s.id = %s", (strat_id_view,))
-        res = cursor.fetchone()
-        conn.close()
-        
-        if res:
-            strat_name_view, author_view = res[0], res[1]
-            # 返回按钮
-            if st.button("⬅️ 返回上一页", type="secondary", use_container_width=True):
-                st.query_params.clear()
-                st.rerun()
-            st.divider()
-            render_dashboard(strat_id_view, strat_name_view, author_view)
-            st.stop() # 拦截渲染，不再往下执行
-        else:
-            st.error("未找到该策略，可能已被删除。")
-            if st.button("返回首页"):
-                st.query_params.clear()
-                st.rerun()
-            st.stop()
-    except Exception as e:
-        st.error(f"加载策略失败: {e}")
-        st.stop()
-
-# 如果不是详情拦截，则正常走常规导航栏路由
+# 正常路由分发
 if nav_choice == "首页":
-    # 首页永远是官方演示看板
     render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
     
     if st.session_state.logged_in:
@@ -641,7 +645,7 @@ elif nav_choice == "排行榜":
                         sparkline_data = navs.tolist()
                         
                         rank_data.append({
-                            "id": s_id, # 👈 传入 ID 用于构建链接
+                            "id": s_id,
                             "name": row['name'],
                             "author": row['username'],
                             "gain": round(gain, 2),
@@ -727,11 +731,6 @@ elif nav_choice == "排行榜":
                                         </svg>`;
                             }}
 
-                            function goToStrategy(id) {{
-                                let baseUrl = window.top.location.origin + window.top.location.pathname;
-                                window.top.location.href = baseUrl + "?view_strat_id=" + id;
-                            }}
-
                             function renderTable() {{
                                 let tbody = document.getElementById("table-body");
                                 tbody.innerHTML = "";
@@ -747,11 +746,11 @@ elif nav_choice == "排行榜":
                                     
                                     let tr = document.createElement("tr");
                                     tr.style.cursor = "pointer";
-                                    tr.onclick = function() {{ goToStrategy(item.id); }};
                                     tr.innerHTML = `
                                         <td>
                                             <div class="sys-name">
-                                                <span style="color: #00ffcc; text-decoration: underline;">${{item.name}}</span>
+                                                <!-- 直接用 a 标签加上 target="_top" 是最稳妥的跳出沙箱的方式 -->
+                                                <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer; display: block; width: 100%; height: 100%;">${{item.name}}</a>
                                             </div>
                                             <div class="sys-author">${{item.author}}</div>
                                         </td>
@@ -894,7 +893,7 @@ elif nav_choice == "我的":
                             sparkline_data = navs.tolist()
                             
                             rank_data.append({
-                                "id": s_id, # 👈 传入 ID 用于构建链接
+                                "id": s_id,
                                 "name": s_name,
                                 "author": s_author,
                                 "gain": round(gain, 2),
@@ -980,11 +979,6 @@ elif nav_choice == "我的":
                                             </svg>`;
                                 }}
 
-                                function goToStrategy(id) {{
-                                    let baseUrl = window.top.location.origin + window.top.location.pathname;
-                                    window.top.location.href = baseUrl + "?view_strat_id=" + id;
-                                }}
-
                                 function renderTable() {{
                                     let tbody = document.getElementById("table-body");
                                     tbody.innerHTML = "";
@@ -1000,11 +994,10 @@ elif nav_choice == "我的":
                                         
                                         let tr = document.createElement("tr");
                                         tr.style.cursor = "pointer";
-                                        tr.onclick = function() {{ goToStrategy(item.id); }};
                                         tr.innerHTML = `
                                             <td>
                                                 <div class="sys-name">
-                                                    <span style="color: #00ffcc; text-decoration: underline;">${{item.name}}</span>
+                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer; display: block; width: 100%; height: 100%;">${{item.name}}</a>
                                                 </div>
                                                 <div class="sys-author">${{item.author}}</div>
                                             </td>
