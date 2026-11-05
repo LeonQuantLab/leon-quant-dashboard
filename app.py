@@ -463,7 +463,6 @@ elif nav_choice == "排行榜":
     st.markdown("展示所有已入库策略的历史表现。💡 *点击表头文字可进行升序/降序切换*。")
     st.divider()
 
-    # 直接占满全屏，取消列分割
     col_main = st.container()
 
     with col_main:
@@ -494,7 +493,6 @@ elif nav_choice == "排行榜":
                         drawdowns = (navs - cum_max) / cum_max
                         max_drawdown = abs(drawdowns.min()) * 100
                         
-                        # 👇 【核心修改】改为传入完整的历史数据，不再截取最后30个
                         sparkline_data = navs.tolist()
                         
                         rank_data.append({
@@ -511,11 +509,9 @@ elif nav_choice == "排行榜":
                 if not rank_data:
                     st.info("暂无足够的数据生成排行榜。")
                 else:
-                    # 默认按历史收益降序排序
                     rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
                     json_data = json.dumps(rank_data)
                     
-                    # 构建纯前端 HTML + JS 代码
                     html_code = f"""
                     <!DOCTYPE html>
                     <html>
@@ -545,7 +541,6 @@ elif nav_choice == "排行榜":
                                     <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
                                     <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
                                     <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
-                                    <!-- 👇 修改了表头文字 -->
                                     <th>收益走势 (历史)</th>
                                 </tr>
                             </thead>
@@ -662,21 +657,39 @@ elif nav_choice == "排行榜":
 
 elif nav_choice == "加入我们":
     st.title("🤝 加入 Leon 量化社区")
-    st.markdown("""
-    ### 关于我们
-    **Leon量化实验室** 致力于将代码与金融完美结合，打造属于个人的量化交易终端。
+    st.divider()
     
-    如果你：
-    * 对量化交易、ETF轮动感兴趣
-    * 希望定制专属的量化模型
-    * 或者只是想每天记录一下自己的实盘净值
+    # 使用两列布局，左侧文字，右侧二维码
+    col_text, col_img = st.columns([1.5, 1])
     
-    欢迎加入我们！
-    """)
-    st.info("💡 请扫描左侧微信二维码（或联系作者），备注 **“量化看板”**，领取《独家白皮书》并加入实盘交流群。")
-    
-    # 如果你有二维码图片，取消下面这行的注释
-    # st.image("qrcode.png", width=200, caption="扫码加入Leon量化社区")
+    with col_text:
+        st.markdown("### 关于我们")
+        st.markdown("""
+        **Leon量化实验室** 致力于将代码与金融完美结合，打造属于个人的量化交易终端。
+        
+        如果你：
+        * 对量化交易、ETF轮动感兴趣
+        * 希望定制专属的量化模型
+        * 或者只是想每天记录一下自己的实盘净值
+        
+        欢迎加入我们！
+        """)
+        
+        st.info("💡 请扫描右侧二维码（或联系作者），备注 **“量化看板”**，领取《独家白皮书》并加入实盘交流群。")
+        
+        st.markdown("""
+        **联系方式：**
+        * 微信：LeonQuant (示例)
+        * 邮箱：contact@leontrade.com (示例)
+        """)
+        
+    with col_img:
+        # 检查文件是否存在，如果存在就展示
+        if os.path.exists("qrcode.png"):
+            st.image("qrcode.png", use_container_width=True, caption="扫码添加微信")
+        else:
+            # 如果本地没有图片，防止报错，提示一下
+            st.warning("⚠️ 未找到二维码图片 (qrcode.png)，请确保已上传至根目录。")
 
 elif nav_choice == "我的":
     if not st.session_state.logged_in:
