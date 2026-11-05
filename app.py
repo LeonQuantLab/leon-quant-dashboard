@@ -223,18 +223,16 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (暴力暗黑化)
+# 4. 全局 CSS (终极暴力暗黑化，专治各种不服)
 # ==========================================
 st.markdown("""
     <style>
+        /* 全局背景 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
-        div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
-        div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
         header[data-testid="stHeader"] { display: none !important; }
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
-        [data-testid="stHeaderActionElements"] { display: none !important; }
 
         .block-container { 
             padding-top: 2.5rem !important; 
@@ -242,37 +240,22 @@ st.markdown("""
             max-width: 95% !important; 
         }
 
-        .top-nav-btn button {
-            width: 100% !important;
-            padding: 0.3rem 1rem !important;
-            height: 38px !important;
-            border-radius: 5px !important;
-            font-size: 14px !important;
-        }
-
         /* ==========================================
-           暴力重写所有输入框和弹窗样式
+           核心修复：针对 Form 内部组件的暴力覆盖
            ========================================== */
-        
-        /* 1. 普通输入框（文本、数字、日期）外壳 */
-        div[data-testid="stTextInput"] > div,
-        div[data-testid="stNumberInput"] > div,
-        div[data-testid="stDateInput"] > div {
+           
+        /* 1. 强制所有输入框（Text, Number, Date）的底层包装容器为深色 */
+        div[data-baseweb="input"], 
+        div[data-baseweb="base-input"],
+        div[data-testid="stDateInput"] > div,
+        div[data-testid="stNumberInput"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-        /* 输入框聚焦时的边框颜色 */
-        div[data-testid="stTextInput"] > div:focus-within,
-        div[data-testid="stNumberInput"] > div:focus-within,
-        div[data-testid="stDateInput"] > div:focus-within {
-            border-color: #ff4b4b !important;
-        }
 
-        /* 2. 内部输入框（透明背景、亮色文字） */
-        div[data-testid="stTextInput"] input,
-        div[data-testid="stNumberInput"] input,
-        div[data-testid="stDateInput"] input {
+        /* 2. 强制输入框本身的文字颜色为浅色，并去除背景 */
+        input {
             background-color: transparent !important;
             color: #e0e0e0 !important;
             -webkit-text-fill-color: #e0e0e0 !important;
@@ -289,28 +272,23 @@ st.markdown("""
             color: #00ffcc !important;
         }
 
-        /* 4. 所有输入框内的图标 (如日历图标) */
-        div[data-testid="stTextInput"] svg,
-        div[data-testid="stNumberInput"] svg,
-        div[data-testid="stDateInput"] svg {
+        /* 4. 日历图标、下拉箭头等 SVG 图标颜色 */
+        svg {
             fill: #a0a0a0 !important;
+            color: #a0a0a0 !important;
         }
 
-        /* 5. Selectbox 下拉框 */
-        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        /* 5. Selectbox 下拉框暴力覆盖 */
+        div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
-            color: #e0e0e0 !important;
         }
-        div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
+        div[data-baseweb="select"] div {
             color: #e0e0e0 !important;
-        }
-        div[data-testid="stSelectbox"] svg {
-            fill: #a0a0a0 !important;
         }
 
-        /* 6. 下拉菜单弹窗 */
+        /* 6. 下拉菜单弹窗、日历弹窗容器 */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
@@ -321,32 +299,12 @@ st.markdown("""
         div[data-baseweb="popover"] li:hover { background-color: #333333 !important; color: #00ffcc !important; }
         div[data-baseweb="popover"] li[aria-selected="true"] { background-color: #333333 !important; color: #00ffcc !important; font-weight: bold; }
 
-        /* 7. 【核心修复】日历弹窗面板 - 暴力覆盖所有内部元素 */
-        div[data-baseweb="calendar"] {
-            background-color: #1e1e24 !important;
-            border: 1px solid #333 !important;
-        }
-        /* 日历内的所有 div 背景色变黑 */
-        div[data-baseweb="calendar"] div {
-            background-color: transparent !important;
-            color: #e0e0e0 !important;
-        }
-        /* 日历内的按钮悬停效果 */
-        div[data-baseweb="calendar"] button {
-            color: #e0e0e0 !important;
-            background-color: transparent !important;
-        }
-        div[data-baseweb="calendar"] button:hover {
-            background-color: #333333 !important;
-            border-radius: 5px !important;
-        }
-        /* 选中的日期 */
-        div[data-baseweb="calendar"] div[aria-selected="true"] {
-            background-color: #ff4b4b !important;
-            color: white !important;
-        }
-        /* 隐藏星期文字上的下划线等干扰 */
-        div[data-baseweb="calendar"] > div > div:first-child { background-color: transparent !important; }
+        /* 7. 日历弹窗内部背景和文字 */
+        div[data-baseweb="calendar"] { background-color: #1e1e24 !important; }
+        div[data-baseweb="calendar"] div { background-color: transparent !important; color: #e0e0e0 !important; }
+        div[data-baseweb="calendar"] button { color: #e0e0e0 !important; }
+        div[data-baseweb="calendar"] button:hover { background-color: #333333 !important; border-radius: 5px !important; }
+        div[data-baseweb="calendar"] div[aria-selected="true"] { background-color: #ff4b4b !important; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -586,7 +544,7 @@ if nav_choice == "首页":
 
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。💡 *点击表格任意一行可查看详情*。")
+    st.markdown("展示所有已入库策略的历史表现。💡 *点击青绿色的策略名称可查看详情*。")
     st.divider()
 
     col_main = st.container()
