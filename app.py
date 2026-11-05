@@ -209,7 +209,7 @@ if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
 # ==========================================
-# 4. 全局 CSS (修复版，解决排版散架问题)
+# 4. 全局 CSS (修复版，解决顶部遮挡与排版散架)
 # ==========================================
 st.markdown("""
     <style>
@@ -219,23 +219,22 @@ st.markdown("""
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
-        /* 隐藏顶部留白，让导航栏更靠上 */
+        /* 👇 【核心修复1】隐藏 Streamlit 默认的顶栏，防止遮住你的自定义导航 */
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* 👇 【核心修复2】增加顶部内边距，让导航栏舒适地显示在页面最上方 */
         .block-container { 
-            padding-top: 1rem !important; 
+            padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
             max-width: 95% !important; 
         }
 
-        /* 强制顶部三列垂直居中，且高度一致 */
-        div[data-testid="stHorizontalBlock"] > div {
-            display: flex;
-            align-items: center;
-        }
-
         /* 修复顶部按钮的宽度和样式，防止霸屏 */
         .top-nav-btn button {
-            width: auto !important;
-            padding: 0.3rem 1.2rem !important;
+            width: 100% !important;
+            padding: 0.3rem 1rem !important;
             height: 38px !important;
             border-radius: 5px !important;
             font-size: 14px !important;
@@ -244,10 +243,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. 顶部导航栏渲染 (修复版)
+# 5. 顶部导航栏渲染 (修复版，使用原生垂直居中)
 # ==========================================
 # 比例调整：Logo(2) | 导航(4.5) | 登录状态(3.5)
-col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5])
+col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5], vertical_alignment="center")
 
 with col_logo:
     st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化终端</h2>", unsafe_allow_html=True)
@@ -268,15 +267,15 @@ with col_nav:
     )
 
 with col_user:
-    # 用两列把右侧内容推到最右边
-    sub_col1, sub_col2 = st.columns([2, 1.2])
+    # 用两列把右侧内容推到最右边，同时保持垂直居中
+    sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
     
     if st.session_state.logged_in:
         with sub_col1:
             st.markdown(f"<p style='text-align: right; color: #00ffcc; font-weight: bold; margin: 0;'>👤 {st.session_state.username}</p>", unsafe_allow_html=True)
         with sub_col2:
             st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
-            if st.button("退出登录", key="logout_btn"):
+            if st.button("退出登录", key="logout_btn", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.username = "Leon量化工作室实盘"
                 st.session_state.user_id = 1
@@ -289,7 +288,7 @@ with col_user:
             st.markdown("<p style='text-align: right; color: #a0a0a0; margin: 0;'>未登录 (演示)</p>", unsafe_allow_html=True)
         with sub_col2:
             st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
-            if st.button("🔑 登录 / 注册", key="login_btn", type="primary"):
+            if st.button("🔑 登录 / 注册", key="login_btn", type="primary", use_container_width=True):
                 st.session_state.auth_action = "login"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -399,7 +398,7 @@ def render_dashboard(strategy_id, strategy_name, author_name):
         else:
             x_range = [df['日期'].min() - pd.Timedelta(days=1), df['日期'].max() + pd.Timedelta(days=1)]
         fig.update_xaxes(range=x_range, showgrid=False, linecolor='#333', hoverformat='%Y-%m-%d')
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
     st.caption("⚠️ 免责声明：历史业绩不代表未来表现。")
@@ -470,7 +469,7 @@ elif nav_choice == "排行榜":
     st.markdown("展示所有已入库策略的历史表现。排名由**最新累计收益率**决定。")
     try:
         conn = get_db_connection()
-        # 👇 【核心修复】分别用子查询取第一天的净值、最后一天的净值
+        # 分别用子查询取第一天的净值、最后一天的净值
         query = """
             SELECT s.name, u.username, 
                    (SELECT TOP 1 strategy_nav FROM dbo.nav_history WHERE strategy_id = s.id ORDER BY trade_date ASC) as start_nav,
