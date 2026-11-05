@@ -294,7 +294,8 @@ def render_dashboard(strategy_id, strategy_name, author_name):
     st.title(f"📈 {strategy_name}")
     st.caption(f"🆔 策略 ID: {strategy_id} | 👤 创建者: {author_name}")
 
-    with st.spinner("正在从云端拉取最新数据..."):
+    # 👇 修改了这里的提示语
+    with st.spinner("正在从阿里云拉取数据..."):
         df = load_data_from_cloud(strategy_id)
 
     if df.empty:
@@ -659,7 +660,6 @@ elif nav_choice == "加入我们":
     st.title("🤝 加入 Leon 量化社区")
     st.divider()
     
-    # 使用三列布局，中间一列显示内容，左右留白，实现居中效果
     _, col_center, _ = st.columns([1, 2, 1])
     
     with col_center:
