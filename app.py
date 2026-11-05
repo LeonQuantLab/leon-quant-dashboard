@@ -223,19 +223,22 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (修复输入框和日期组件)
+# 4. 全局 CSS (全面优化暗黑主题组件)
 # ==========================================
 st.markdown("""
     <style>
+        /* 整体背景与字体 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
+        /* 隐藏默认顶栏和锚点 */
         header[data-testid="stHeader"] { display: none !important; }
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
         [data-testid="stHeaderActionElements"] { display: none !important; }
 
+        /* 页面留白 */
         .block-container { 
             padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
@@ -250,10 +253,51 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* 修复 Selectbox 下拉菜单白底灰字的问题 */
+        /* ==========================================
+           统一暗黑输入框样式 (日期、数字、文本)
+           ========================================== */
+           
+        /* 1. 通用外层容器 (背景、边框、圆角) */
+        div[data-testid="stTextInput"] > div,
+        div[data-testid="stNumberInput"] > div,
+        div[data-testid="stDateInput"] > div {
+            background-color: #1e1e24 !important;
+            border: 1px solid #333 !important;
+            border-radius: 5px !important;
+        }
+
+        /* 2. 内部输入框 (透明背景、亮色文字) */
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stNumberInput"] input,
+        div[data-testid="stDateInput"] input {
+            background-color: transparent !important;
+            color: #e0e0e0 !important;
+            -webkit-text-fill-color: #e0e0e0 !important; /* 强制覆盖浏览器的自动填充颜色 */
+        }
+
+        /* 3. 数字输入框的加减按钮 */
+        div[data-testid="stNumberInput"] button {
+            background-color: transparent !important;
+            border-left: 1px solid #333 !important;
+            color: #a0a0a0 !important;
+        }
+        div[data-testid="stNumberInput"] button:hover {
+            background-color: #333 !important;
+            color: #00ffcc !important;
+        }
+
+        /* 4. 所有输入框内的图标 (如日历图标) */
+        div[data-testid="stTextInput"] svg,
+        div[data-testid="stNumberInput"] svg,
+        div[data-testid="stDateInput"] svg {
+            fill: #a0a0a0 !important;
+        }
+
+        /* 5. Selectbox 下拉框 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
-            border-color: #333 !important;
+            border: 1px solid #333 !important;
+            border-radius: 5px !important;
             color: #e0e0e0 !important;
         }
         div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
@@ -262,11 +306,19 @@ st.markdown("""
         div[data-testid="stSelectbox"] svg {
             fill: #a0a0a0 !important;
         }
+
+        /* ==========================================
+           弹窗样式 (下拉菜单、日历)
+           ========================================== */
+        
+        /* 通用 Popover 容器 */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
+
+        /* 下拉菜单列表 */
         div[data-baseweb="popover"] ul {
             background-color: #1e1e24 !important;
         }
@@ -284,39 +336,20 @@ st.markdown("""
             font-weight: bold;
         }
 
-        /* 👇👇👇 修复 日期输入框 和 文本/数字输入框 */
-        
-        /* 日期选择器容器 */
-        div[data-testid="stDateInput"] > div {
-            background-color: #1e1e24 !important;
-            border-color: #333 !important;
-        }
-        /* 日期选择器文字 */
-        div[data-testid="stDateInput"] input {
-            color: #e0e0e0 !important;
-        }
-        /* 日期选择器日历图标 */
-        div[data-testid="stDateInput"] svg {
-            fill: #a0a0a0 !important;
-        }
-        
         /* 日历弹窗面板 */
-        div[data-baseweb="popover"] div[data-baseweb="calendar"] {
+        div[data-baseweb="calendar"] {
             background-color: #1e1e24 !important;
         }
-        div[data-baseweb="popover"] div[data-baseweb="calendar"] * {
+        div[data-baseweb="calendar"] * {
             color: #e0e0e0 !important;
         }
-        div[data-baseweb="popover"] div[data-baseweb="calendar"] button:hover {
+        div[data-baseweb="calendar"] div[role="button"]:hover {
             background-color: #333333 !important;
+            border-radius: 5px !important;
         }
-
-        /* 文本输入框和数字输入框 */
-        div[data-testid="stTextInput"] input,
-        div[data-testid="stNumberInput"] input {
-            background-color: #1e1e24 !important;
-            color: #e0e0e0 !important;
-            border-color: #333 !important;
+        div[data-baseweb="calendar"] div[aria-selected="true"] {
+            background-color: #ff4b4b !important;
+            color: white !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -822,7 +855,6 @@ elif nav_choice == "我的":
                             time.sleep(1)
                             st.rerun()
             
-            # 👇 新增：我的策略表现对比表
             st.divider()
             st.markdown("### 📊 我的策略表现对比")
             st.markdown("💡 *点击表头文字可进行升序/降序切换*。")
