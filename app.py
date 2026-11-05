@@ -223,7 +223,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS
+# 4. 全局 CSS (暴力强推暗黑主题)
 # ==========================================
 st.markdown("""
     <style>
@@ -241,34 +241,41 @@ st.markdown("""
         }
 
         /* ==========================================
-           暴力暗黑化所有输入组件
+           暴力清理所有输入框的底色和边框
            ========================================== */
+        
+        /* 强制所有输入框、下拉框、日期框的外壳变深色 */
         div[data-baseweb="input"], 
         div[data-baseweb="base-input"],
+        div[data-baseweb="input-container"],
         div[data-baseweb="select"] > div,
         div[data-testid="stDateInput"] > div,
-        div[data-testid="stNumberInput"] > div {
+        div[data-testid="stNumberInput"] > div,
+        div[data-testid="stTextInput"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
             border-radius: 5px !important;
             box-shadow: none !important;
         }
 
-        /* 输入框内部文字强制变白 */
-        div[data-baseweb="input"] input, 
-        div[data-baseweb="select"] span, 
-        div[data-baseweb="select"] div,
-        div[data-testid="stDateInput"] input,
-        div[data-testid="stNumberInput"] input {
+        /* 强制内部输入框透明，文字白色 */
+        input, textarea {
+            background-color: transparent !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
+            caret-color: #ffffff !important;
         }
 
-        /* 图标颜色 */
+        /* Selectbox 内部的文字和图标 */
+        div[data-baseweb="select"] span, 
+        div[data-baseweb="select"] div {
+            color: #ffffff !important;
+        }
         div[data-testid="stDateInput"] svg,
         div[data-testid="stSelectbox"] svg,
         div[data-testid="stNumberInput"] svg {
             fill: #ffffff !important;
+            color: #ffffff !important;
         }
 
         /* 数字框的加减按钮 */
@@ -282,24 +289,29 @@ st.markdown("""
             color: #00ffcc !important;
         }
 
-        /* 下拉菜单和日历弹窗 */
-        div[data-baseweb="popover"] > div {
+        /* ==========================================
+           下拉菜单和日历弹窗（挂载在 body 下）
+           ========================================== */
+        div[data-baseweb="popover"] > div,
+        div[data-baseweb="calendar"] {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
         }
-        div[data-baseweb="calendar"] {
-            background-color: #1e1e24 !important;
-        }
+        
         div[data-baseweb="calendar"] div, 
-        div[data-baseweb="popover"] li {
+        div[data-baseweb="popover"] li,
+        div[data-baseweb="popover"] ul,
+        div[data-baseweb="popover"] div[role="listbox"] {
             color: #ffffff !important;
             background-color: transparent !important;
         }
+        
         div[data-baseweb="popover"] li:hover,
         div[data-baseweb="calendar"] div[role="button"]:hover {
             background-color: #333333 !important;
             border-radius: 5px !important;
         }
+        
         div[data-baseweb="calendar"] div[aria-selected="true"] {
             background-color: #ff4b4b !important;
             color: white !important;
@@ -775,7 +787,6 @@ elif nav_choice == "我的":
         
         with tab1:
             st.markdown("#### 新建策略")
-            # 👇 移除 st.form，直接使用普通组件
             new_strat_name = st.text_input("新策略名称")
             new_bench = st.selectbox("初始基准", list(BENCHMARKS.keys()))
             if st.button("创建策略", type="primary"):
@@ -984,7 +995,6 @@ elif nav_choice == "我的":
 
         with tab2:
             st.markdown("#### 录入今日数据")
-            # 👇 移除 st.form，直接平铺组件
             if strat_names:
                 default_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
                 selected_input_strat_name = st.selectbox("选择要录入的策略", strat_names, index=default_idx)
@@ -1009,7 +1019,6 @@ elif nav_choice == "我的":
             selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
             final_bench_code = BENCHMARKS[selected_bench_name]
             
-            # 👇 使用普通 button 替代 form_submit_button
             if st.button("提交数据", type="primary"):
                 if not selected_input_strat_name:
                     st.error("请先选择策略！")
