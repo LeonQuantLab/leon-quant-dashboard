@@ -231,7 +231,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (终极暴力覆盖方案)
+# 4. 全局 CSS (究极暴力暗黑补丁，双管齐下)
 # ==========================================
 st.markdown("""
     <style>
@@ -249,28 +249,44 @@ st.markdown("""
         }
 
         /* ==========================================
-           核心输入框暗黑化
+           一、核心输入框外层壳子强制变黑
            ========================================== */
-        div[data-testid="stSelectbox"] > div,
-        div[data-testid="stDateInput"] > div,
+        div[data-testid="stTextInput"] > div,
         div[data-testid="stNumberInput"] > div,
-        div[data-testid="stTextInput"] > div {
+        div[data-testid="stDateInput"] > div,
+        div[data-testid="stSelectbox"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
             border-radius: 5px !important;
         }
-        
-        div[data-testid="stSelectbox"] *, div[data-testid="stDateInput"] input, 
-        div[data-testid="stNumberInput"] input, div[data-testid="stTextInput"] input {
+
+        /* 内层 BaseWeb 容器也必须是黑的，防止夹层白底 */
+        div[data-testid="stTextInput"] div[data-baseweb="input"],
+        div[data-testid="stNumberInput"] div[data-baseweb="input"],
+        div[data-testid="stDateInput"] div[data-baseweb="input"],
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            background-color: #1e1e24 !important;
+            border: none !important;
+        }
+
+        /* 强制所有输入框内的文字为白色 */
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stNumberInput"] input,
+        div[data-testid="stDateInput"] input,
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] * {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }
 
-        div[data-testid="stDateInput"] svg, div[data-testid="stSelectbox"] svg, 
+        /* 图标颜色（日历、下拉箭头） */
+        div[data-testid="stDateInput"] svg, 
+        div[data-testid="stSelectbox"] svg, 
         div[data-testid="stNumberInput"] svg {
             fill: #ffffff !important;
+            color: #ffffff !important;
         }
 
+        /* 数字框的加减按钮 */
         div[data-testid="stNumberInput"] button {
             background-color: transparent !important;
             border-left: 1px solid #444 !important;
@@ -282,7 +298,7 @@ st.markdown("""
         }
 
         /* ==========================================
-           【核弹级 Popover 修复】针对下拉菜单和日历挂载在 body 的弹窗
+           二、挂载在 body 下的所有 Popover (下拉菜单 & 日历)
            ========================================== */
         
         /* 最外层 Popover 容器 */
@@ -300,7 +316,7 @@ st.markdown("""
             background-color: #1e1e24 !important;
         }
 
-        /* 列表中的每一个选项 (极其关键) */
+        /* 列表中的每一个选项 */
         div[data-baseweb="popover"] li,
         div[data-baseweb="popover"] div[role="option"],
         div[role="option"] {
@@ -309,7 +325,7 @@ st.markdown("""
             border: none !important;
         }
 
-        /* 选项的悬停状态 (鼠标移上去) */
+        /* 选项的悬停状态 */
         div[data-baseweb="popover"] li:hover,
         div[data-baseweb="popover"] div[role="option"]:hover,
         div[role="option"]:hover {
@@ -326,15 +342,11 @@ st.markdown("""
             font-weight: bold !important;
         }
 
-        /* 强制所有内部 div 透明，文字白色 */
+        /* 强制内部 div 透明 */
         div[data-baseweb="popover"] * {
             background-color: transparent !important;
-            color: #ffffff !important;
         }
-        div[data-baseweb="popover"] > div {
-            background-color: #1e1e24 !important;
-        }
-
+        
         /* 日历面板特殊处理 */
         div[data-baseweb="calendar"] {
             background-color: #1e1e24 !important;
