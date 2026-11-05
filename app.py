@@ -1033,9 +1033,10 @@ elif nav_choice == "我的":
                                             
                                             // 如果没有数据，指标直接变灰
                                             let textStyle = item.gain === null ? 'class="empty-data"' : '';
-                                            let gainTd = item.gain !== null ? `<td class="${gainClass}">${gainStr}</td>` : `<td class="empty-data">-</td>`;
-                                            let annualTd = item.annualized !== null ? `<td class="${annualClass}">${annualStr}</td>` : `<td class="empty-data">-</td>`;
-                                            let drawdownTd = item.drawdown !== null ? `<td class="negative">${drawdownStr}</td>` : `<td class="empty-data">-</td>`;
+                                            // 👇 修复了 JS 中单引号导致的 Python f-string 解析报错（改成了双大括号）
+                                            let gainTd = item.gain !== null ? `<td class="${{gainClass}}">${{gainStr}}</td>` : `<td class="empty-data">-</td>`;
+                                            let annualTd = item.annualized !== null ? `<td class="${{annualClass}}">${{annualStr}}</td>` : `<td class="empty-data">-</td>`;
+                                            let drawdownTd = item.drawdown !== null ? `<td class="negative">${{drawdownStr}}</td>` : `<td class="empty-data">-</td>`;
                                             
                                             let svgContent = generateSparkline(item.spark);
                                             
