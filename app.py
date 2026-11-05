@@ -124,7 +124,6 @@ def create_new_strategy(user_id, strategy_name, bench_code):
         st.error(f"创建策略失败: {e}")
         return False
 
-# 👇 【性能优化】加入缓存装饰器，60秒内重复访问不会去查数据库
 @st.cache_data(ttl=60, show_spinner=False)
 def load_raw_nav_data(strategy_id):
     try:
@@ -199,7 +198,6 @@ def insert_manual_nav(strategy_id, bench_code, input_date, input_nav):
         cursor.execute(sql, (strategy_id, str(input_date), strategy_id, str(input_date), float(input_nav), bench_val))
         conn.commit()
         conn.close()
-        # 录入数据后清除缓存，保证下次刷新能看到最新数据
         load_raw_nav_data.clear()
         return True, "✅ 数据录入成功！"
     except Exception as e:
@@ -221,7 +219,6 @@ if "auth_action" not in st.session_state:
 if "nav_menu" not in st.session_state:
     st.session_state.nav_menu = "首页"
 
-# 用来标记是否需要强制跳转页面（登录/注册成功后）
 if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
@@ -298,7 +295,6 @@ with col_logo:
     st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化实验室</h2>", unsafe_allow_html=True)
 
 with col_nav:
-    # 如果登录/注册成功，强制设置导航状态并重置标志
     if st.session_state.force_jump:
         st.session_state.nav_menu = "我的"
         st.session_state.force_jump = False
@@ -308,8 +304,8 @@ with col_nav:
         menu_title=None,
         options=menu_options,
         icons=["house", "trophy", "person-plus", "person-fill"],
-        default_index=0, # 默认值随便填，真实状态由 key="nav_menu" 控制
-        key="nav_menu",  # 👈 【核心修复】绑定 key，实现瞬间切换
+        default_index=0,
+        key="nav_menu",
         orientation="horizontal",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent", "width": "100%"},
@@ -480,7 +476,7 @@ if st.session_state.auth_action == "login":
                 st.session_state.username = u
                 st.session_state.user_id = uid
                 st.session_state.auth_action = "none"
-                st.session_state.force_jump = True  # 👈 触发强制跳转标志
+                st.session_state.force_jump = True
                 
                 strats = get_user_strategies(uid)
                 if strats:
@@ -504,7 +500,7 @@ if st.session_state.auth_action == "login":
                     st.session_state.username = ru
                     st.session_state.user_id = uid
                     st.session_state.auth_action = "none"
-                    st.session_state.force_jump = True # 👈 触发强制跳转标志
+                    st.session_state.force_jump = True
                     
                     st.success(msg)
                     time.sleep(1)
@@ -790,7 +786,202 @@ elif nav_choice == "我的":
                             st.success("创建成功！已为您切换。")
                             time.sleep(1)
                             st.rerun()
-        
+            
+            # 👇 新增：我的策略表现对比表
+            st.divider()
+            st.markdown("### 📊 我的策略表现对比")
+            st.markdown("💡 *点击表头文字可进行升序/降序切换*。")
+            
+            try:
+                conn = get_db_connection()
+                # 只查询当前用户的策略
+                query_strats = """
+                    SELECT s.id, s.name, u.username 
+                    FROM dbo.strategies s
+                    JOIN dbo.users u ON s.user_id = u.id
+                    WHERE s.user_id = %s AND EXISTS (SELECT 1 FROM dbo.nav_history WHERE strategy_id = s.id)
+                """
+                cursor = conn.cursor()
+                cursor.execute(query_strats, (st.session_state.user_id,))
+                user_strats_data = cursor.fetchall()
+                
+                if not user_strats_data:
+                    st.info("您还没有添加任何净值数据，快去录入数据吧！")
+                else:
+                    rank_data = []
+                    for row in user_strats_data:
+                        s_id = row[0]
+                        s_name = row[1]
+                        s_author = row[2]
+                        
+                        df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
+                        
+                        if len(df_nav) > 1:
+                            navs = df_nav['strategy_nav'].values
+                            days = len(df_nav)
+                            gain = (navs[-1] / navs[0] - 1) * 100
+                            annualized = ((navs[-1] / navs[0]) ** (252 / days) - 1) * 100
+                            cum_max = np.maximum.accumulate(navs)
+                            drawdowns = (navs - cum_max) / cum_max
+                            max_drawdown = abs(drawdowns.min()) * 100
+                            
+                            sparkline_data = navs.tolist()
+                            
+                            rank_data.append({
+                                "name": s_name,
+                                "author": s_author,
+                                "gain": round(gain, 2),
+                                "annualized": round(annualized, 2),
+                                "drawdown": round(max_drawdown, 2),
+                                "days": days,
+                                "spark": sparkline_data
+                            })
+                    conn.close()
+                    
+                    if not rank_data:
+                        st.info("暂无足够的数据生成报表。")
+                    else:
+                        rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
+                        json_data = json.dumps(rank_data)
+                        
+                        html_code = f"""
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
+                                .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+                                .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; user-select: none; }}
+                                .custom-table th.sortable {{ cursor: pointer; }}
+                                .custom-table th.sortable:hover {{ color: #fff; }}
+                                .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
+                                .custom-table tr:hover {{ background-color: #1e1e24; }}
+                                .positive {{ color: #00ffcc !important; font-weight: bold; }}
+                                .negative {{ color: #ff4b4b !important; font-weight: bold; }}
+                                .sys-name {{ color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
+                                .sys-author {{ color: #a0a0a0; font-size: 12px; }}
+                                .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
+                                .arrow.active {{ color: #00ffcc; }}
+                            </style>
+                        </head>
+                        <body>
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>策略名称</th>
+                                        <th class="sortable" onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
+                                        <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
+                                        <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
+                                        <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
+                                        <th>收益走势 (历史)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body">
+                                </tbody>
+                            </table>
+
+                            <script>
+                                let data = {json_data};
+                                let currentSortKey = 'gain';
+                                let isAscending = false;
+
+                                function generateSparkline(sparkData, width=120, height=40) {{
+                                    if (sparkData.length < 2) return "";
+                                    let min = Math.min(...sparkData);
+                                    let max = Math.max(...sparkData);
+                                    if (max === min) max += 1;
+                                    
+                                    let points = [[0, height]];
+                                    for (let i = 0; i < sparkData.length; i++) {{
+                                        let x = (i / (sparkData.length - 1)) * width;
+                                        let y = height - ((sparkData[i] - min) / (max - min)) * height;
+                                        points.push([x, y]);
+                                    }}
+                                    points.push([width, height]);
+                                    
+                                    let pathStr = "M " + points.map(p => p[0] + "," + p[1]).join(" L ") + " Z";
+                                    let linePoints = points.slice(1, points.length - 1).map(p => p[0] + "," + p[1]).join(" L ");
+                                    let linePath = "M " + linePoints;
+                                    
+                                    let isUp = sparkData[sparkData.length - 1] >= sparkData[0];
+                                    let strokeColor = isUp ? "#00ffcc" : "#ff4b4b";
+                                    let fillColor = isUp ? "rgba(0, 255, 204, 0.15)" : "rgba(255, 75, 75, 0.15)";
+                                    
+                                    return `<svg width="${{width}}" height="${{height}}" viewBox="0 0 ${{width}} ${{height}}" style="overflow: visible;">
+                                                <path d="${{pathStr}}" fill="${{fillColor}}" />
+                                                <path d="${{linePath}}" fill="none" stroke="${{strokeColor}}" stroke-width="1.5" stroke-linejoin="round" />
+                                            </svg>`;
+                                }}
+
+                                function renderTable() {{
+                                    let tbody = document.getElementById("table-body");
+                                    tbody.innerHTML = "";
+                                    
+                                    data.forEach(item => {{
+                                        let gainClass = item.gain >= 0 ? "positive" : "negative";
+                                        let annualClass = item.annualized >= 0 ? "positive" : "negative";
+                                        
+                                        let gainStr = item.gain > 0 ? "+" + item.gain.toFixed(2) + "%" : item.gain.toFixed(2) + "%";
+                                        let annualStr = item.annualized > 0 ? "+" + item.annualized.toFixed(2) + "%" : item.annualized.toFixed(2) + "%";
+                                        
+                                        let svgContent = generateSparkline(item.spark);
+                                        
+                                        let tr = document.createElement("tr");
+                                        tr.innerHTML = `
+                                            <td>
+                                                <div class="sys-name">${{item.name}}</div>
+                                                <div class="sys-author">${{item.author}}</div>
+                                            </td>
+                                            <td class="${{gainClass}}">${{gainStr}}</td>
+                                            <td class="${{annualClass}}">${{annualStr}}</td>
+                                            <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
+                                            <td>${{item.days}} 天</td>
+                                            <td>${{svgContent}}</td>
+                                        `;
+                                        tbody.appendChild(tr);
+                                    }});
+                                }}
+
+                                function sortTable(key, isNumeric) {{
+                                    document.querySelectorAll('.arrow').forEach(el => {{
+                                        el.className = 'arrow';
+                                        el.innerText = '⇅';
+                                    }});
+
+                                    if (currentSortKey === key) {{
+                                        isAscending = !isAscending;
+                                    }} else {{
+                                        currentSortKey = key;
+                                        isAscending = false;
+                                    }}
+
+                                    let arrowEl = document.getElementById("arr-" + key);
+                                    arrowEl.className = 'arrow active';
+                                    arrowEl.innerText = isAscending ? '▲' : '▼';
+
+                                    data.sort((a, b) => {{
+                                        let valA = a[key];
+                                        let valB = b[key];
+                                        if (isNumeric) {{
+                                            return isAscending ? valA - valB : valB - valA;
+                                        }} else {{
+                                            return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                                        }}
+                                    }});
+                                    
+                                    renderTable();
+                                }}
+
+                                renderTable();
+                            </script>
+                        </body>
+                        </html>
+                        """
+                        
+                        components.html(html_code, height=400, scrolling=True)
+            except Exception as e:
+                st.error(f"策略对比表加载失败: {e}")
+
         with tab2:
             st.markdown(f"#### 录入今日数据 (策略: {st.session_state.current_strategy_name})")
             with st.form("manual_nav_input_tab"):
@@ -836,7 +1027,7 @@ elif nav_choice == "我的":
                                 )
                         conn.commit()
                         conn.close()
-                        load_raw_nav_data.clear() # 👈 保存后清空缓存，确保拉取最新数据
+                        load_raw_nav_data.clear()
                         st.success("✅ 保存成功！")
                         time.sleep(1)
                         st.rerun()
