@@ -22,7 +22,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
 # ==========================================
 # 1. 页面基础配置与安全防护
 # ==========================================
-# 👇 修改了网页标签标题
 st.set_page_config(page_title="Leon量化实验室", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
 if os.path.exists(".env"):
@@ -204,7 +203,8 @@ if "logged_in" not in st.session_state:
     st.session_state.username = "Leon量化工作室实盘"
     st.session_state.user_id = 1 
     st.session_state.current_strategy_id = 1
-    st.session_state.current_strategy_name = "Leon大A动量策略"
+    # 👇 修改了默认策略名称
+    st.session_state.current_strategy_name = "大A趋势跟踪"
 
 if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
@@ -243,7 +243,6 @@ st.markdown("""
 col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5], vertical_alignment="center")
 
 with col_logo:
-    # 👇 修改了这里的文字
     st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化实验室</h2>", unsafe_allow_html=True)
 
 with col_nav:
@@ -274,7 +273,8 @@ with col_user:
                 st.session_state.username = "Leon量化工作室实盘"
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
-                st.session_state.current_strategy_name = "Leon大A动量策略"
+                # 👇 修改了退出登录后的默认策略名称
+                st.session_state.current_strategy_name = "大A趋势跟踪"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -455,7 +455,8 @@ if nav_choice == "首页":
                     break
             render_dashboard(st.session_state.current_strategy_id, st.session_state.current_strategy_name, st.session_state.username)
     else:
-        render_dashboard(1, "Leon大A动量策略", "Leon量化工作室实盘")
+        # 👇 修改了未登录演示时的策略名称
+        render_dashboard(1, "大A趋势跟踪", "Leon量化工作室实盘")
 
 # ==========================================
 # 排行榜页面 (带表头点击排序、完整历史迷你图)
