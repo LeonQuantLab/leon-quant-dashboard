@@ -22,7 +22,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
 # ==========================================
 # 1. 页面基础配置与安全防护
 # ==========================================
-st.set_page_config(page_title="Leon量化终端", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
+# 👇 修改了网页标签标题
+st.set_page_config(page_title="Leon量化实验室", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
 if os.path.exists(".env"):
     load_dotenv()
@@ -242,7 +243,8 @@ st.markdown("""
 col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5], vertical_alignment="center")
 
 with col_logo:
-    st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化终端</h2>", unsafe_allow_html=True)
+    # 👇 修改了这里的文字
+    st.markdown("<h2 style='color: #00ffcc; margin: 0; padding: 0; font-size: 24px;'>📈 Leon量化实验室</h2>", unsafe_allow_html=True)
 
 with col_nav:
     nav_choice = option_menu(
@@ -294,7 +296,6 @@ def render_dashboard(strategy_id, strategy_name, author_name):
     st.title(f"📈 {strategy_name}")
     st.caption(f"🆔 策略 ID: {strategy_id} | 👤 创建者: {author_name}")
 
-    # 👇 修改了这里的提示语
     with st.spinner("正在从阿里云拉取数据..."):
         df = load_data_from_cloud(strategy_id)
 
