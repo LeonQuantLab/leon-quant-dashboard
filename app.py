@@ -659,10 +659,10 @@ elif nav_choice == "加入我们":
     st.title("🤝 加入 Leon 量化社区")
     st.divider()
     
-    # 使用两列布局，左侧文字，右侧二维码
-    col_text, col_img = st.columns([1.5, 1])
+    # 使用三列布局，中间一列显示内容，左右留白，实现居中效果
+    _, col_center, _ = st.columns([1, 2, 1])
     
-    with col_text:
+    with col_center:
         st.markdown("### 关于我们")
         st.markdown("""
         **Leon量化实验室** 致力于将代码与金融完美结合，打造属于个人的量化交易终端。
@@ -675,21 +675,13 @@ elif nav_choice == "加入我们":
         欢迎加入我们！
         """)
         
-        st.info("💡 请扫描右侧二维码（或联系作者），备注 **“量化看板”**，领取《独家白皮书》并加入实盘交流群。")
+        st.info("💡 请联系作者，备注 **“量化看板”**，领取《独家白皮书》并加入实盘交流群。")
         
         st.markdown("""
         **联系方式：**
-        * 微信：LeonQuant (示例)
-        * 邮箱：contact@leontrade.com (示例)
+        * 微信：`s13064387800`
+        * 邮箱：`suyang0903@163.com`
         """)
-        
-    with col_img:
-        # 检查文件是否存在，如果存在就展示
-        if os.path.exists("qrcode.png"):
-            st.image("qrcode.png", use_container_width=True, caption="扫码添加微信")
-        else:
-            # 如果本地没有图片，防止报错，提示一下
-            st.warning("⚠️ 未找到二维码图片 (qrcode.png)，请确保已上传至根目录。")
 
 elif nav_choice == "我的":
     if not st.session_state.logged_in:
