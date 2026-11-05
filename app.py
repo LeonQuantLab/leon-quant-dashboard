@@ -578,9 +578,12 @@ if "view_strat_id" in st.query_params:
         
         if res:
             strat_name_view, author_view = res[0], res[1]
-            if st.button("⬅️ 返回上一页"):
+            # 返回按钮更明显
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("⬅️ 返回上一页", type="secondary", use_container_width=True):
                 st.query_params.clear()
                 st.rerun()
+            st.divider()
             render_dashboard(strat_id_view, strat_name_view, author_view)
             st.stop() # 拦截渲染，不再往下执行
         else:
@@ -742,7 +745,8 @@ elif nav_choice == "排行榜":
                                     tr.innerHTML = `
                                         <td>
                                             <div class="sys-name">
-                                                <a href="?view_strat_id=${{item.id}}" target="_self" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                <!-- 增加 target="_top" -->
+                                                <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
                                             </div>
                                             <div class="sys-author">${{item.author}}</div>
                                         </td>
@@ -988,7 +992,8 @@ elif nav_choice == "我的":
                                         tr.innerHTML = `
                                             <td>
                                                 <div class="sys-name">
-                                                    <a href="?view_strat_id=${{item.id}}" target="_self" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                    <!-- 增加 target="_top" -->
+                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
                                                 </div>
                                                 <div class="sys-author">${{item.author}}</div>
                                             </td>
