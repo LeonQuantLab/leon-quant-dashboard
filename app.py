@@ -249,11 +249,10 @@ st.markdown("""
         }
 
         /* ==========================================
-           核心组件强推暗黑
+           核心输入组件强推暗黑
            ========================================== */
         div[data-testid="stSelectbox"] > div,
         div[data-testid="stSelectbox"] > div > div,
-        div[data-testid="stSelectbox"] div[role="button"],
         div[data-testid="stDateInput"] > div,
         div[data-testid="stDateInput"] > div > div,
         div[data-testid="stNumberInput"] > div,
@@ -287,9 +286,8 @@ st.markdown("""
         }
 
         /* ==========================================
-           【究极核弹】日历弹窗和下拉菜单彻底暗黑化
+           【核弹级处理】挂载在 body 下的所有 Popover (下拉菜单 & 日历)
            ========================================== */
-        /* 1. 最外层包裹容器 */
         div[data-baseweb="popover"],
         div[data-baseweb="popover"] > div,
         div[data-baseweb="calendar"],
@@ -300,36 +298,32 @@ st.markdown("""
             border-radius: 5px !important;
         }
 
-        /* 2. 日历和下拉列表里的所有元素 */
         div[data-baseweb="calendar"] *, 
-        div[data-baseweb="popover"] li,
         div[data-baseweb="popover"] ul,
+        div[data-baseweb="popover"] li,
         div[data-baseweb="popover"] div[role="listbox"] {
-            background-color: transparent !important;
+            background-color: #1e1e24 !important;
             color: #ffffff !important;
         }
 
-        /* 3. 日历里的按钮 (月份切换、日期格子) */
+        div[data-baseweb="popover"] li:hover,
+        div[data-baseweb="calendar"] div[role="button"]:hover,
+        div[data-baseweb="calendar"] button:hover {
+            background-color: #333333 !important;
+            border-radius: 5px !important;
+        }
+
+        div[data-baseweb="popover"] li[aria-selected="true"],
+        div[data-baseweb="calendar"] div[aria-selected="true"] {
+            background-color: #ff4b4b !important;
+            color: white !important;
+        }
+
         div[data-baseweb="calendar"] button,
         div[data-baseweb="calendar"] div[role="button"] {
             color: #ffffff !important;
             background-color: transparent !important;
             border: none !important;
-        }
-        
-        /* 4. 悬停效果 */
-        div[data-baseweb="calendar"] button:hover,
-        div[data-baseweb="calendar"] div[role="button"]:hover,
-        div[data-baseweb="popover"] li:hover {
-            background-color: #333333 !important;
-            border-radius: 5px !important;
-        }
-
-        /* 5. 选中的日期 */
-        div[data-baseweb="calendar"] div[aria-selected="true"] {
-            background-color: #ff4b4b !important;
-            color: white !important;
-            border-radius: 5px !important;
         }
     </style>
 """, unsafe_allow_html=True)
