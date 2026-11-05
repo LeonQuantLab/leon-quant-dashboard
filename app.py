@@ -456,14 +456,15 @@ if nav_choice == "首页":
         render_dashboard(1, "Leon大A动量策略", "Leon量化工作室实盘")
 
 # ==========================================
-# 排行榜页面 (带表头点击排序、迷你面积图)
+# 排行榜页面 (带表头点击排序、完整历史迷你图)
 # ==========================================
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
     st.markdown("展示所有已入库策略的历史表现。💡 *点击表头文字可进行升序/降序切换*。")
     st.divider()
 
-    col_main, col_side = st.columns([7.5, 2.5])
+    # 直接占满全屏，取消列分割
+    col_main = st.container()
 
     with col_main:
         try:
@@ -492,7 +493,9 @@ elif nav_choice == "排行榜":
                         cum_max = np.maximum.accumulate(navs)
                         drawdowns = (navs - cum_max) / cum_max
                         max_drawdown = abs(drawdowns.min()) * 100
-                        sparkline_data = navs[-30:].tolist()
+                        
+                        # 👇 【核心修改】改为传入完整的历史数据，不再截取最后30个
+                        sparkline_data = navs.tolist()
                         
                         rank_data.append({
                             "name": row['name'],
@@ -521,7 +524,6 @@ elif nav_choice == "排行榜":
                             body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
                             .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
                             .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; user-select: none; }}
-                            /* 只有加了 sortable 类的表头才显示手型和悬停颜色 */
                             .custom-table th.sortable {{ cursor: pointer; }}
                             .custom-table th.sortable:hover {{ color: #fff; }}
                             .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
@@ -538,13 +540,13 @@ elif nav_choice == "排行榜":
                         <table class="custom-table">
                             <thead>
                                 <tr>
-                                    <!-- 策略名称不加 onclick，不带排序箭头 -->
                                     <th>策略名称</th>
                                     <th class="sortable" onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
                                     <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
                                     <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
                                     <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
-                                    <th>收益走势 (近30日)</th>
+                                    <!-- 👇 修改了表头文字 -->
+                                    <th>收益走势 (历史)</th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -653,22 +655,6 @@ elif nav_choice == "排行榜":
 
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
-
-    # ==========================================
-    # 右侧边栏区域 (只保留加入社区)
-    # ==========================================
-    with col_side:
-        st.markdown("""
-        <div style="background-color: #1a1c24; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #333; margin-top: 10px;">
-            <h4 style="margin-top: 0; color: #fff; font-size:16px;">加入社区</h4>
-            <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 15px;">获取最新量化策略与实盘信号</p>
-            <a href="#" target="_blank" style="text-decoration: none;">
-                <div style="background-color: #0088cc; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 14px;">
-                    ✈️ Telegram 频道
-                </div>
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
 
 # ==========================================
 # 其他页面
