@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -10,6 +11,7 @@ import pymssql
 import hashlib
 import warnings
 import akshare as ak
+import json
 from dotenv import load_dotenv
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
@@ -20,7 +22,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
 # ==========================================
 # 1. 页面基础配置与安全防护
 # ==========================================
-# 设置 wide 模式，隐藏默认侧边栏
 st.set_page_config(page_title="Leon量化终端", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
 if os.path.exists(".env"):
@@ -138,7 +139,6 @@ def load_data_from_cloud(strategy_id):
         df['策略权益'] = pd.to_numeric(df['strategy_nav'], errors='coerce')
         df['基准净值'] = pd.to_numeric(df['benchmark_nav'], errors='coerce')
         
-        # 👇 【防弹护盾】过滤脏数据（小于100或者单日暴跌超过50%）
         df = df[(df['策略权益'] > 100) & (df['基准净值'] > 100)]
         df = df.sort_values('日期')
         df['pct_change'] = df['策略权益'].pct_change()
@@ -209,29 +209,23 @@ if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
 # ==========================================
-# 4. 全局 CSS (修复版，解决顶部遮挡与排版散架)
+# 4. 全局 CSS
 # ==========================================
 st.markdown("""
     <style>
-        /* 整体背景与字体 */
         .stApp { background-color: #0e1117; }
         h1, h2, h3, p, div, span { color: #e0e0e0 !important; }
         div[data-testid="stMetricValue"] { color: #00ffcc; font-size: 1.4rem !important; }
         div[data-testid="stMetricLabel"] { color: #a0a0a0; font-size: 0.9rem !important; }
         
-        /* 👇 【核心修复1】隐藏 Streamlit 默认的顶栏，防止遮住你的自定义导航 */
-        header[data-testid="stHeader"] {
-            display: none !important;
-        }
+        header[data-testid="stHeader"] { display: none !important; }
 
-        /* 👇 【核心修复2】增加顶部内边距，让导航栏舒适地显示在页面最上方 */
         .block-container { 
             padding-top: 2.5rem !important; 
             padding-bottom: 2rem !important; 
             max-width: 95% !important; 
         }
 
-        /* 修复顶部按钮的宽度和样式，防止霸屏 */
         .top-nav-btn button {
             width: 100% !important;
             padding: 0.3rem 1rem !important;
@@ -243,9 +237,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. 顶部导航栏渲染 (修复版，使用原生垂直居中)
+# 5. 顶部导航栏
 # ==========================================
-# 比例调整：Logo(2) | 导航(4.5) | 登录状态(3.5)
 col_logo, col_nav, col_user = st.columns([2, 4.5, 3.5], vertical_alignment="center")
 
 with col_logo:
@@ -267,7 +260,6 @@ with col_nav:
     )
 
 with col_user:
-    # 用两列把右侧内容推到最右边，同时保持垂直居中
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
     
     if st.session_state.logged_in:
@@ -296,7 +288,7 @@ with col_user:
 st.divider()
 
 # ==========================================
-# 6. 看板渲染模块 (核心绘图)
+# 6. 看板渲染模块
 # ==========================================
 def render_dashboard(strategy_id, strategy_name, author_name):
     st.title(f"📈 {strategy_name}")
@@ -309,7 +301,6 @@ def render_dashboard(strategy_id, strategy_name, author_name):
         st.warning("⚠️ 当前策略暂无有效数据。")
         return
 
-    # 指标计算
     nav_strategy = df['策略权益'] / df['策略权益'].iloc[0]
     nav_bench = df['基准净值'] / df['基准净值'].iloc[0]
     df['策略日收益'] = nav_strategy.pct_change()
@@ -404,7 +395,7 @@ def render_dashboard(strategy_id, strategy_name, author_name):
     st.caption("⚠️ 免责声明：历史业绩不代表未来表现。")
 
 # ==========================================
-# 7. 路由分发 (根据顶部导航栏的选择渲染不同页面)
+# 7. 路由分发
 # ==========================================
 if st.session_state.auth_action == "login":
     st.title("🔒 身份验证")
@@ -465,49 +456,13 @@ if nav_choice == "首页":
         render_dashboard(1, "Leon大A动量策略", "Leon量化工作室实盘")
 
 # ==========================================
-# 👇 排行榜页面 (暗黑定制版、面积迷你图、灵活排序)
+# 排行榜页面 (带表头点击排序、迷你面积图)
 # ==========================================
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。")
+    st.markdown("展示所有已入库策略的历史表现。💡 *点击表头文字可进行升序/降序切换*。")
     st.divider()
 
-    # 辅助函数：生成带渐变填充的 SVG 迷你走势图
-    def generate_sparkline(data_list, width=120, height=40):
-        if len(data_list) < 2: return ""
-        min_val, max_val = min(data_list), max(data_list)
-        if max_val == min_val: max_val += 1
-        
-        points = []
-        # 起点（左下角）
-        points.append(f"0,{height}")
-        for i, val in enumerate(data_list):
-            x = (i / (len(data_list) - 1)) * width
-            y = height - ((val - min_val) / (max_val - min_val)) * height
-            points.append(f"{x},{y}")
-        # 终点（右下角）
-        points.append(f"{width},{height}")
-        
-        # 封闭多边形形成面积图
-        path = "M " + " L ".join(points) + " Z"
-        
-        # 判断涨跌颜色
-        is_up = data_list[-1] >= data_list[0]
-        stroke_color = "#00ffcc" if is_up else "#ff4b4b"
-        fill_color = "rgba(0, 255, 204, 0.15)" if is_up else "rgba(255, 75, 75, 0.15)"
-        
-        # 绘制单独的折线（不带底部封闭）以让线条清晰
-        line_points = [p for i, p in enumerate(points) if 0 < i < len(points)-1]
-        line_path = "M " + " L ".join(line_points)
-        
-        return f'''
-        <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="overflow: visible;">
-            <path d="{path}" fill="{fill_color}" />
-            <path d="{line_path}" fill="none" stroke="{stroke_color}" stroke-width="1.5" stroke-linejoin="round" />
-        </svg>
-        '''
-
-    # 分为左右两列
     col_main, col_side = st.columns([7.5, 2.5])
 
     with col_main:
@@ -540,82 +495,161 @@ elif nav_choice == "排行榜":
                         sparkline_data = navs[-30:].tolist()
                         
                         rank_data.append({
-                            "策略名称": row['name'],
-                            "创建者": row['username'],
-                            "历史收益": round(gain, 2),
-                            "年化收益": round(annualized, 2),
-                            "最大回撤": round(max_drawdown, 2),
-                            "运行天数": days,
-                            "sparkline": sparkline_data
+                            "name": row['name'],
+                            "author": row['username'],
+                            "gain": round(gain, 2),
+                            "annualized": round(annualized, 2),
+                            "drawdown": round(max_drawdown, 2),
+                            "days": days,
+                            "spark": sparkline_data
                         })
                 conn.close()
                 
                 if not rank_data:
                     st.info("暂无足够的数据生成排行榜。")
                 else:
-                    # 顶部操作栏：选择排序
-                    st.markdown("#### 📊 排序选项")
-                    sort_col1, sort_col2 = st.columns([2, 2])
-                    with sort_col1:
-                        sort_field = st.selectbox("排序字段", ["历史收益", "年化收益", "最大回撤", "运行天数"], index=0)
-                    with sort_col2:
-                        sort_order = st.radio("排序方式", ["降序 (从高到低)", "升序 (从低到高)"], horizontal=True)
+                    # 默认按历史收益降序排序
+                    rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
                     
-                    # 执行排序
-                    ascending = True if "升序" in sort_order else False
-                    # 最大回撤通常是越小越好，但这里严格按数值升/降序排
-                    rank_data = sorted(rank_data, key=lambda x: x[sort_field], reverse=not ascending)
+                    # 将 Python 数据转为 JSON 字符串，传给前端的 JS
+                    json_data = json.dumps(rank_data)
                     
-                    # 构建 HTML 表格
-                    table_html = """
-                    <style>
-                        .custom-table { width: 100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif; }
-                        .custom-table th { text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; }
-                        .custom-table td { padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }
-                        .custom-table tr:hover { background-color: #1e1e24; }
-                        .positive { color: #00ffcc !important; font-weight: bold; }
-                        .negative { color: #ff4b4b !important; font-weight: bold; }
-                        .sys-name { color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }
-                        .sys-author { color: #a0a0a0; font-size: 12px; }
-                    </style>
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 25%;">System / 策略名称</th>
-                                <th style="width: 15%;">Gain / 历史收益</th>
-                                <th style="width: 15%;">Annualized / 年化</th>
-                                <th style="width: 15%;">Drawdown / 回撤</th>
-                                <th style="width: 10%;">Days / 天数</th>
-                                <th style="width: 20%;">Performance / 走势</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    # 构建纯前端 HTML + JS 代码，利用 components.html 隔离渲染
+                    html_code = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
+                            .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+                            .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; cursor: pointer; user-select: none; }}
+                            .custom-table th:hover {{ color: #fff; }}
+                            .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
+                            .custom-table tr:hover {{ background-color: #1e1e24; }}
+                            .positive {{ color: #00ffcc !important; font-weight: bold; }}
+                            .negative {{ color: #ff4b4b !important; font-weight: bold; }}
+                            .sys-name {{ color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
+                            .sys-author {{ color: #a0a0a0; font-size: 12px; }}
+                            .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
+                            .arrow.active {{ color: #00ffcc; }}
+                        </style>
+                    </head>
+                    <body>
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortTable('name', false)">策略名称 <span class="arrow" id="arr-name">⇅</span></th>
+                                    <th onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
+                                    <th onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
+                                    <th onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
+                                    <th onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
+                                    <th>收益走势 (近30日)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body">
+                            </tbody>
+                        </table>
+
+                        <script>
+                            let data = {json_data};
+                            let currentSortKey = 'gain';
+                            let isAscending = false; // 默认降序
+
+                            function generateSparkline(sparkData, width=120, height=40) {{
+                                if (sparkData.length < 2) return "";
+                                let min = Math.min(...sparkData);
+                                let max = Math.max(...sparkData);
+                                if (max === min) max += 1;
+                                
+                                let points = [[0, height]];
+                                for (let i = 0; i < sparkData.length; i++) {{
+                                    let x = (i / (sparkData.length - 1)) * width;
+                                    let y = height - ((sparkData[i] - min) / (max - min)) * height;
+                                    points.push([x, y]);
+                                }}
+                                points.push([width, height]);
+                                
+                                let pathStr = "M " + points.map(p => p[0] + "," + p[1]).join(" L ") + " Z";
+                                let linePoints = points.slice(1, points.length - 1).map(p => p[0] + "," + p[1]).join(" L ");
+                                let linePath = "M " + linePoints;
+                                
+                                let isUp = sparkData[sparkData.length - 1] >= sparkData[0];
+                                let strokeColor = isUp ? "#00ffcc" : "#ff4b4b";
+                                let fillColor = isUp ? "rgba(0, 255, 204, 0.15)" : "rgba(255, 75, 75, 0.15)";
+                                
+                                return `<svg width="${{width}}" height="${{height}}" viewBox="0 0 ${{width}} ${{height}}" style="overflow: visible;">
+                                            <path d="${{pathStr}}" fill="${{fillColor}}" />
+                                            <path d="${{linePath}}" fill="none" stroke="${{strokeColor}}" stroke-width="1.5" stroke-linejoin="round" />
+                                        </svg>`;
+                            }}
+
+                            function renderTable() {{
+                                let tbody = document.getElementById("table-body");
+                                tbody.innerHTML = "";
+                                
+                                data.forEach(item => {{
+                                    let gainClass = item.gain >= 0 ? "positive" : "negative";
+                                    let annualClass = item.annualized >= 0 ? "positive" : "negative";
+                                    
+                                    let gainStr = item.gain > 0 ? "+" + item.gain.toFixed(2) + "%" : item.gain.toFixed(2) + "%";
+                                    let annualStr = item.annualized > 0 ? "+" + item.annualized.toFixed(2) + "%" : item.annualized.toFixed(2) + "%";
+                                    
+                                    let svgContent = generateSparkline(item.spark);
+                                    
+                                    let tr = document.createElement("tr");
+                                    tr.innerHTML = `
+                                        <td>
+                                            <div class="sys-name">${{item.name}}</div>
+                                            <div class="sys-author">${{item.author}}</div>
+                                        </td>
+                                        <td class="${{gainClass}}">${{gainStr}}</td>
+                                        <td class="${{annualClass}}">${{annualStr}}</td>
+                                        <td class="negative">${{item.drawdown.toFixed(2)}}%</td>
+                                        <td>${{item.days}} 天</td>
+                                        <td>${{svgContent}}</td>
+                                    `;
+                                    tbody.appendChild(tr);
+                                }});
+                            }}
+
+                            function sortTable(key, isNumeric) {{
+                                document.querySelectorAll('.arrow').forEach(el => {{
+                                    el.className = 'arrow';
+                                    el.innerText = '⇅';
+                                }});
+
+                                if (currentSortKey === key) {{
+                                    isAscending = !isAscending;
+                                }} else {{
+                                    currentSortKey = key;
+                                    isAscending = false; // 默认新列降序
+                                }}
+
+                                let arrowEl = document.getElementById("arr-" + key);
+                                arrowEl.className = 'arrow active';
+                                arrowEl.innerText = isAscending ? '▲' : '▼';
+
+                                data.sort((a, b) => {{
+                                    let valA = a[key];
+                                    let valB = b[key];
+                                    if (isNumeric) {{
+                                        return isAscending ? valA - valB : valB - valA;
+                                    }} else {{
+                                        return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                                    }}
+                                }});
+                                
+                                renderTable();
+                            }}
+
+                            renderTable();
+                        </script>
+                    </body>
+                    </html>
                     """
                     
-                    for item in rank_data:
-                        gain_color = "positive" if item['历史收益'] >= 0 else "negative"
-                        annual_color = "positive" if item['年化收益'] >= 0 else "negative"
-                        sparkline_svg = generate_sparkline(item['sparkline'])
-                        
-                        gain_str = f"+{item['历史收益']:.2f}%" if item['历史收益'] > 0 else f"{item['历史收益']:.2f}%"
-                        annual_str = f"+{item['年化收益']:.2f}%" if item['年化收益'] > 0 else f"{item['年化收益']:.2f}%"
-                        
-                        table_html += f"""
-                            <tr>
-                                <td>
-                                    <div class="sys-name">{item['策略名称']}</div>
-                                    <div class="sys-author">{item['创建者']}</div>
-                                </td>
-                                <td class="{gain_color}">{gain_str}</td>
-                                <td class="{annual_color}">{annual_str}</td>
-                                <td class="negative">{item['最大回撤']:.2f}%</td>
-                                <td>{item['运行天数']} 天</td>
-                                <td>{sparkline_svg}</td>
-                            </tr>
-                        """
-                    
-                    table_html += "</tbody></table>"
-                    st.markdown(table_html, unsafe_allow_html=True)
+                    # 使用 iframe 组件渲染 HTML，彻底解决样式污染
+                    components.html(html_code, height=600, scrolling=True)
 
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
