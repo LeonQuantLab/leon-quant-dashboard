@@ -465,27 +465,11 @@ if nav_choice == "首页":
         render_dashboard(1, "Leon大A动量策略", "Leon量化工作室实盘")
 
 # ==========================================
-# 👇 新增：Myfxbook 风格的排行榜页面 👇
+# 👇 排行榜页面 (支持原生列排序、微型图、红绿样式)
 # ==========================================
 elif nav_choice == "排行榜":
-    
-    # 辅助函数：生成 SVG 微型走势图 (Sparkline)
-    def generate_sparkline(data_list, width=100, height=30):
-        if len(data_list) < 2: return ""
-        min_val, max_val = min(data_list), max(data_list)
-        if max_val == min_val: max_val += 1
-        points = []
-        for i, val in enumerate(data_list):
-            x = (i / (len(data_list) - 1)) * width
-            y = height - ((val - min_val) / (max_val - min_val)) * height
-            points.append(f"{x},{y}")
-        path = "M " + " L ".join(points)
-        # 判断整体趋势：涨用绿色，跌用红色
-        color = "#00ffcc" if data_list[-1] >= data_list[0] else "#ff4b4b"
-        return f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="overflow: visible;"><path d="{path}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round"/></svg>'
-
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。排名由**最新累计收益率**决定。")
+    st.markdown("展示所有已入库策略的历史表现。💡 *点击表头可进行升序/降序排序*。")
     st.divider()
 
     # 分为左右两列：左侧表格占 7.5，右侧边栏占 2.5
@@ -513,109 +497,84 @@ elif nav_choice == "排行榜":
                     # 拉取该策略的净值数据
                     df_nav = pd.read_sql(f"SELECT trade_date, strategy_nav FROM dbo.nav_history WHERE strategy_id = {s_id} ORDER BY trade_date ASC", conn)
                     
-                    if len(df_nav) > 0:
+                    if len(df_nav) > 1: # 至少需要2天数据才能计算走势
                         navs = df_nav['strategy_nav'].values
+                        days = len(df_nav)
                         
-                        # 计算累计收益
+                        # 1. 历史收益
                         gain = (navs[-1] / navs[0] - 1) * 100
                         
-                        # 计算最大回撤
+                        # 2. 年化收益 (假设一年252个交易日)
+                        annualized = ((navs[-1] / navs[0]) ** (252 / days) - 1) * 100
+                        
+                        # 3. 最大回撤
                         cum_max = np.maximum.accumulate(navs)
                         drawdowns = (navs - cum_max) / cum_max
                         max_drawdown = abs(drawdowns.min()) * 100
                         
-                        # 计算月度收益 (取最后一个月的数据计算)
-                        last_date = pd.to_datetime(df_nav['trade_date'].iloc[-1])
-                        month_data = df_nav[pd.to_datetime(df_nav['trade_date']).dt.month == last_date.month]
-                        if len(month_data) > 1:
-                            monthly_gain = (month_data['strategy_nav'].values[-1] / month_data['strategy_nav'].values[0] - 1) * 100
-                        else:
-                            monthly_gain = 0.0
-                            
-                        # 取最后 30 个数据点画微型图
+                        # 4. 取最后 30 个数据点画微型图
                         sparkline_data = navs[-30:].tolist()
                         
                         rank_data.append({
-                            "name": row['name'],
-                            "username": row['username'],
-                            "gain": gain,
-                            "drawdown": max_drawdown,
-                            "monthly": monthly_gain,
-                            "sparkline": sparkline_data
+                            "策略名称": row['name'],
+                            "创建者": row['username'],
+                            "历史收益(%)": round(gain, 2),
+                            "年化收益(%)": round(annualized, 2),
+                            "最大回撤(%)": round(max_drawdown, 2),
+                            "运行天数": days,
+                            "收益走势": sparkline_data
                         })
                 
                 conn.close()
                 
-                # 按累计收益排序
-                rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
-                
-                # 3. 渲染 HTML 表格
-                table_html = """
-                <style>
-                    .rank-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-                    .rank-table th { text-align: left; padding: 12px 8px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; }
-                    .rank-table td { padding: 12px 8px; border-bottom: 1px solid #222; vertical-align: middle; }
-                    .rank-table tr:hover { background-color: #1e1e24; }
-                    .positive { color: #00ffcc; font-weight: bold; }
-                    .negative { color: #ff4b4b; font-weight: bold; }
-                    .sys-name { color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }
-                    .sys-author { color: #a0a0a0; font-size: 12px; }
-                    .avatar { width: 28px; height: 28px; border-radius: 50%; background-color: #333; display: inline-block; vertical-align: middle; margin-right: 10px; text-align: center; line-height: 28px; font-size: 14px; color: #00ffcc; font-weight: bold;}
-                </style>
-                <table class="rank-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 35%;">System / 策略名称</th>
-                            <th style="width: 15%;">Gain / 累计收益</th>
-                            <th style="width: 15%;">Drawdown / 回撤</th>
-                            <th style="width: 15%;">Monthly / 月度</th>
-                            <th style="width: 20%;">Performance / 走势</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                """
-                
-                # 遍历数据填充表格
-                for item in rank_data:
-                    gain_color = "positive" if item['gain'] >= 0 else "negative"
-                    monthly_color = "positive" if item['monthly'] >= 0 else "negative"
-                    sparkline_svg = generate_sparkline(item['sparkline'])
+                if not rank_data:
+                    st.info("暂无足够的数据来生成排行榜（至少需要2天净值记录）。")
+                else:
+                    # 转换为 DataFrame
+                    df_rank = pd.DataFrame(rank_data)
                     
-                    # 用昵称首字母做头像
-                    avatar_char = item['username'][0].upper() if item['username'] else "?"
+                    # 默认按历史收益降序排序
+                    df_rank = df_rank.sort_values(by="历史收益(%)", ascending=False).reset_index(drop=True)
                     
-                    # 格式化正负号
-                    gain_str = f"+{item['gain']:.2f}%" if item['gain'] > 0 else f"{item['gain']:.2f}%"
-                    monthly_str = f"+{item['monthly']:.2f}%" if item['monthly'] > 0 else f"{item['monthly']:.2f}%"
+                    # 应用 Pandas 样式：正收益绿色，负收益红色，回撤红色
+                    styled_df = df_rank.style.map(
+                        lambda v: 'color: #00ffcc; font-weight: bold;' if v >= 0 else 'color: #ff4b4b; font-weight: bold;', 
+                        subset=['历史收益(%)', '年化收益(%)']
+                    ).map(
+                        lambda v: 'color: #ff4b4b;', 
+                        subset=['最大回撤(%)']
+                    ).format({
+                        "历史收益(%)": "{:+.2f}%",
+                        "年化收益(%)": "{:+.2f}%",
+                        "最大回撤(%)": "{:.2f}%",
+                        "运行天数": "{} 天"
+                    })
                     
-                    table_html += f"""
-                        <tr>
-                            <td>
-                                <div style="display:flex; align-items:center;">
-                                    <div class="avatar">{avatar_char}</div>
-                                    <div>
-                                        <div class="sys-name">{item['name']}</div>
-                                        <div class="sys-author">{item['username']}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="{gain_color}">{gain_str}</td>
-                            <td style="color: #ff4b4b;">{item['drawdown']:.2f}%</td>
-                            <td class="{monthly_color}">{monthly_str}</td>
-                            <td>{sparkline_svg}</td>
-                        </tr>
-                    """
-                
-                table_html += "</tbody></table>"
-                
-                # 在 Streamlit 中渲染 HTML
-                st.markdown(table_html, unsafe_allow_html=True)
-
+                    # 使用 st.dataframe 和 column_config 渲染
+                    st.dataframe(
+                        styled_df,
+                        use_container_width=True,
+                        height=600, # 固定高度，支持滚动
+                        column_config={
+                            "策略名称": st.column_config.TextColumn("策略名称", width="medium"),
+                            "创建者": st.column_config.TextColumn("创建者", width="small"),
+                            "历史收益(%)": st.column_config.TextColumn("历史收益", help="从运行第一天到现在的总收益"),
+                            "年化收益(%)": st.column_config.TextColumn("年化收益", help="折算后的年化收益率"),
+                            "最大回撤(%)": st.column_config.TextColumn("最大回撤", help="历史最大回撤幅度"),
+                            "运行天数": st.column_config.TextColumn("运行天数"),
+                            "收益走势": st.column_config.LineChartColumn(
+                                "收益走势 (近30日)",
+                                width="medium",
+                                y_min=None,
+                                y_max=None
+                            )
+                        }
+                    )
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
 
     # ==========================================
-    # 右侧边栏区域 (模拟 Myfxbook 的 Market Hours)
+    # 右侧边栏区域
     # ==========================================
     with col_side:
         # 市场时间面板
