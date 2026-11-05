@@ -361,6 +361,10 @@ with col_nav:
             "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
+    
+    # 如果用户手动切了导航，清空 URL 上的策略详情参数
+    if "view_strat_id" in st.query_params:
+        st.query_params.clear()
 
 with col_user:
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
@@ -377,6 +381,7 @@ with col_user:
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
                 st.session_state.nav_menu = "首页"
+                st.query_params.clear()
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -561,27 +566,44 @@ if st.session_state.auth_action == "login":
         st.rerun()
     st.stop()
 
-if nav_choice == "首页":
-    if st.session_state.logged_in:
-        user_strats = get_user_strategies(st.session_state.user_id)
-        strat_names = [s[1] for s in user_strats]
-        if strat_names:
-            selected_name = st.selectbox("切换你的策略", strat_names, index=strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0)
-            for s in user_strats:
-                if s[1] == selected_name:
-                    st.session_state.current_strategy_id = s[0]
-                    st.session_state.current_strategy_name = s[1]
-                    break
-            render_dashboard(st.session_state.current_strategy_id, st.session_state.current_strategy_name, st.session_state.username)
-    else:
-        render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
+# 👇 【超链接直达核心】拦截 URL 里的策略详情查看请求
+if "view_strat_id" in st.query_params:
+    strat_id_view = int(st.query_params["view_strat_id"])
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT s.name, u.username FROM dbo.strategies s JOIN dbo.users u ON s.user_id = u.id WHERE s.id = %s", (strat_id_view,))
+        res = cursor.fetchone()
+        conn.close()
+        
+        if res:
+            strat_name_view, author_view = res[0], res[1]
+            if st.button("⬅️ 返回上一页"):
+                st.query_params.clear()
+                st.rerun()
+            render_dashboard(strat_id_view, strat_name_view, author_view)
+            st.stop() # 拦截渲染，不再往下执行
+        else:
+            st.error("未找到该策略，可能已被删除。")
+            if st.button("返回首页"):
+                st.query_params.clear()
+                st.rerun()
+            st.stop()
+    except Exception as e:
+        st.error(f"加载策略失败: {e}")
+        st.stop()
 
-# ==========================================
-# 排行榜页面 (带表头点击排序、完整历史迷你图)
-# ==========================================
+# 如果不是详情拦截，则正常走常规导航栏路由
+if nav_choice == "首页":
+    # 首页永远是官方演示看板
+    render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
+    
+    if st.session_state.logged_in:
+        st.info("💡 客户想看自己的策略？请前往「我的」页面管理您的专属策略。")
+
 elif nav_choice == "排行榜":
     st.title("🏆 全站策略实盘排行榜")
-    st.markdown("展示所有已入库策略的历史表现。💡 *点击表头文字可进行升序/降序切换*。")
+    st.markdown("展示所有已入库策略的历史表现。💡 *点击青绿色的策略名称可查看详情*。")
     st.divider()
 
     col_main = st.container()
@@ -617,6 +639,7 @@ elif nav_choice == "排行榜":
                         sparkline_data = navs.tolist()
                         
                         rank_data.append({
+                            "id": s_id, # 👈 传入 ID 用于构建链接
                             "name": row['name'],
                             "author": row['username'],
                             "gain": round(gain, 2),
@@ -647,7 +670,7 @@ elif nav_choice == "排行榜":
                             .custom-table tr:hover {{ background-color: #1e1e24; }}
                             .positive {{ color: #00ffcc !important; font-weight: bold; }}
                             .negative {{ color: #ff4b4b !important; font-weight: bold; }}
-                            .sys-name {{ color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
+                            .sys-name {{ font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
                             .sys-author {{ color: #a0a0a0; font-size: 12px; }}
                             .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
                             .arrow.active {{ color: #00ffcc; }}
@@ -718,7 +741,9 @@ elif nav_choice == "排行榜":
                                     let tr = document.createElement("tr");
                                     tr.innerHTML = `
                                         <td>
-                                            <div class="sys-name">${{item.name}}</div>
+                                            <div class="sys-name">
+                                                <a href="?view_strat_id=${{item.id}}" target="_self" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                            </div>
                                             <div class="sys-author">${{item.author}}</div>
                                         </td>
                                         <td class="${{gainClass}}">${{gainStr}}</td>
@@ -772,10 +797,6 @@ elif nav_choice == "排行榜":
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
 
-# ==========================================
-# 其他页面
-# ==========================================
-
 elif nav_choice == "加入我们":
     st.title("🤝 加入 Leon 量化社区")
     st.divider()
@@ -827,7 +848,7 @@ elif nav_choice == "我的":
             
             st.divider()
             st.markdown("### 📊 我的策略表现对比")
-            st.markdown("💡 *点击表头文字可进行升序/降序切换*。")
+            st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
             
             try:
                 conn = get_db_connection()
@@ -864,6 +885,7 @@ elif nav_choice == "我的":
                             sparkline_data = navs.tolist()
                             
                             rank_data.append({
+                                "id": s_id, # 👈 传入 ID 用于构建链接
                                 "name": s_name,
                                 "author": s_author,
                                 "gain": round(gain, 2),
@@ -894,7 +916,7 @@ elif nav_choice == "我的":
                                 .custom-table tr:hover {{ background-color: #1e1e24; }}
                                 .positive {{ color: #00ffcc !important; font-weight: bold; }}
                                 .negative {{ color: #ff4b4b !important; font-weight: bold; }}
-                                .sys-name {{ color: #ffffff; font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
+                                .sys-name {{ font-weight: bold; font-size: 15px; margin-bottom: 4px; }}
                                 .sys-author {{ color: #a0a0a0; font-size: 12px; }}
                                 .arrow {{ font-size: 12px; margin-left: 5px; color: #666; }}
                                 .arrow.active {{ color: #00ffcc; }}
@@ -965,7 +987,9 @@ elif nav_choice == "我的":
                                         let tr = document.createElement("tr");
                                         tr.innerHTML = `
                                             <td>
-                                                <div class="sys-name">${{item.name}}</div>
+                                                <div class="sys-name">
+                                                    <a href="?view_strat_id=${{item.id}}" target="_self" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
+                                                </div>
                                                 <div class="sys-author">${{item.author}}</div>
                                             </td>
                                             <td class="${{gainClass}}">${{gainStr}}</td>
@@ -1060,7 +1084,6 @@ elif nav_choice == "我的":
         with tab3:
             st.markdown("#### 修改或删除历史数据")
             if strat_names:
-                # 让用户在这里选择要编辑哪个策略
                 default_edit_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
                 edit_strat_name = st.selectbox("选择要编辑的策略", strat_names, index=default_edit_idx)
                 target_edit_id = None
