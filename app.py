@@ -223,7 +223,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (暗黑主题)
+# 4. 全局 CSS
 # ==========================================
 st.markdown("""
     <style>
@@ -250,7 +250,7 @@ st.markdown("""
             font-size: 14px !important;
         }
 
-        /* 统一暗黑输入框样式 */
+        /* 暗黑输入框 */
         div[data-testid="stTextInput"] > div,
         div[data-testid="stNumberInput"] > div,
         div[data-testid="stDateInput"] > div {
@@ -280,7 +280,7 @@ st.markdown("""
             fill: #a0a0a0 !important;
         }
 
-        /* Selectbox 下拉框 */
+        /* 下拉框 */
         div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
@@ -294,42 +294,20 @@ st.markdown("""
             fill: #a0a0a0 !important;
         }
 
-        /* 弹窗样式 (下拉菜单、日历) */
+        /* 弹窗 */
         div[data-baseweb="popover"] > div {
             background-color: #1e1e24 !important;
             border: 1px solid #333 !important;
             border-radius: 5px !important;
         }
-        div[data-baseweb="popover"] ul {
-            background-color: #1e1e24 !important;
-        }
-        div[data-baseweb="popover"] li {
-            background-color: #1e1e24 !important;
-            color: #e0e0e0 !important;
-        }
-        div[data-baseweb="popover"] li:hover {
-            background-color: #333333 !important;
-            color: #00ffcc !important;
-        }
-        div[data-baseweb="popover"] li[aria-selected="true"] {
-            background-color: #333333 !important;
-            color: #00ffcc !important;
-            font-weight: bold;
-        }
-        div[data-baseweb="calendar"] {
-            background-color: #1e1e24 !important;
-        }
-        div[data-baseweb="calendar"] * {
-            color: #e0e0e0 !important;
-        }
-        div[data-baseweb="calendar"] div[role="button"]:hover {
-            background-color: #333333 !important;
-            border-radius: 5px !important;
-        }
-        div[data-baseweb="calendar"] div[aria-selected="true"] {
-            background-color: #ff4b4b !important;
-            color: white !important;
-        }
+        div[data-baseweb="popover"] ul { background-color: #1e1e24 !important; }
+        div[data-baseweb="popover"] li { background-color: #1e1e24 !important; color: #e0e0e0 !important; }
+        div[data-baseweb="popover"] li:hover { background-color: #333333 !important; color: #00ffcc !important; }
+        div[data-baseweb="popover"] li[aria-selected="true"] { background-color: #333333 !important; color: #00ffcc !important; font-weight: bold; }
+        div[data-baseweb="calendar"] { background-color: #1e1e24 !important; }
+        div[data-baseweb="calendar"] * { color: #e0e0e0 !important; }
+        div[data-baseweb="calendar"] div[role="button"]:hover { background-color: #333333 !important; border-radius: 5px !important; }
+        div[data-baseweb="calendar"] div[aria-selected="true"] { background-color: #ff4b4b !important; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -361,11 +339,6 @@ with col_nav:
             "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
-    
-    # 如果用户主动点击了导航栏，且当前有详情页参数，则退出详情页并清空参数
-    if nav_choice != "首页" and "view_strat_id" in st.query_params:
-        st.query_params.clear()
-        st.rerun()
 
 with col_user:
     sub_col1, sub_col2 = st.columns([2, 1.2], vertical_alignment="center")
@@ -382,7 +355,6 @@ with col_user:
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
                 st.session_state.nav_menu = "首页"
-                st.query_params.clear()
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -512,42 +484,9 @@ def render_dashboard(strategy_id, strategy_name, author_name):
     st.divider()
     st.caption("⚠️ 免责声明：历史业绩不代表未来表现。")
 
-
 # ==========================================
 # 7. 路由分发
 # ==========================================
-# 优先拦截 URL 上的策略详情参数
-if "view_strat_id" in st.query_params:
-    strat_id_view = int(st.query_params["view_strat_id"])
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT s.name, u.username FROM dbo.strategies s JOIN dbo.users u ON s.user_id = u.id WHERE s.id = %s", (strat_id_view,))
-        res = cursor.fetchone()
-        conn.close()
-        
-        if res:
-            strat_name_view, author_view = res[0], res[1]
-            if st.button("⬅️ 返回上一页", type="secondary", use_container_width=True):
-                st.query_params.clear()
-                # 清除参数后通过修改 nav_menu 让界面回到首页（或者保持原样）
-                st.session_state.nav_menu = "首页"
-                st.rerun()
-            st.divider()
-            render_dashboard(strat_id_view, strat_name_view, author_view)
-            st.stop() # 拦截渲染，不再往下执行
-        else:
-            st.error("未找到该策略，可能已被删除。")
-            if st.button("返回首页"):
-                st.query_params.clear()
-                st.session_state.nav_menu = "首页"
-                st.rerun()
-            st.stop()
-    except Exception as e:
-        st.error(f"加载策略失败: {e}")
-        st.stop()
-
-# 处理登录/注册动作
 if st.session_state.auth_action == "login":
     st.title("🔒 身份验证")
     tab1, tab2 = st.tabs(["登录", "注册"])
@@ -600,7 +539,6 @@ if st.session_state.auth_action == "login":
         st.rerun()
     st.stop()
 
-# 正常路由分发
 if nav_choice == "首页":
     render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
     
@@ -745,12 +683,10 @@ elif nav_choice == "排行榜":
                                     let svgContent = generateSparkline(item.spark);
                                     
                                     let tr = document.createElement("tr");
-                                    tr.style.cursor = "pointer";
                                     tr.innerHTML = `
                                         <td>
                                             <div class="sys-name">
-                                                <!-- 直接用 a 标签加上 target="_top" 是最稳妥的跳出沙箱的方式 -->
-                                                <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer; display: block; width: 100%; height: 100%;">${{item.name}}</a>
+                                                <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
                                             </div>
                                             <div class="sys-author">${{item.author}}</div>
                                         </td>
@@ -839,6 +775,32 @@ elif nav_choice == "我的":
         user_strats = get_user_strategies(st.session_state.user_id)
         strat_names = [s[1] for s in user_strats]
         
+        # 👇 【核心UX优化】全局策略选择器
+        if strat_names:
+            # 确保 session_state 里的当前策略名有效
+            if st.session_state.current_strategy_name not in strat_names:
+                st.session_state.current_strategy_name = strat_names[0]
+                st.session_state.current_strategy_id = user_strats[0][0]
+                
+            selected_global_strat = st.selectbox(
+                "🎯 当前操作策略 (切换后将应用于下方所有操作)", 
+                strat_names, 
+                index=strat_names.index(st.session_state.current_strategy_name)
+            )
+            
+            # 同步更新 session_state
+            if selected_global_strat != st.session_state.current_strategy_name:
+                st.session_state.current_strategy_name = selected_global_strat
+                for s in user_strats:
+                    if s[1] == selected_global_strat:
+                        st.session_state.current_strategy_id = s[0]
+                        break
+                st.rerun() # 切换后刷新一下，保证下面表单同步更新
+        else:
+            st.info("您还没有创建任何策略，请先在下方创建一个。")
+
+        st.divider()
+        
         tab1, tab2, tab3 = st.tabs(["📊 策略管理", "📝 录入数据", "📜 历史数据编辑"])
         
         with tab1:
@@ -850,13 +812,13 @@ elif nav_choice == "我的":
                     if new_strat_name:
                         if create_new_strategy(st.session_state.user_id, new_strat_name, BENCHMARKS[new_bench]):
                             st.session_state.current_strategy_name = new_strat_name
-                            st.success("创建成功！")
+                            st.success("创建成功！已自动切换到该策略。")
                             time.sleep(1)
                             st.rerun()
             
             st.divider()
             st.markdown("### 📊 我的策略表现对比")
-            st.markdown("💡 *点击表格任意一行可查看详情*。")
+            st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
             
             try:
                 conn = get_db_connection()
@@ -993,11 +955,10 @@ elif nav_choice == "我的":
                                         let svgContent = generateSparkline(item.spark);
                                         
                                         let tr = document.createElement("tr");
-                                        tr.style.cursor = "pointer";
                                         tr.innerHTML = `
                                             <td>
                                                 <div class="sys-name">
-                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer; display: block; width: 100%; height: 100%;">${{item.name}}</a>
+                                                    <a href="?view_strat_id=${{item.id}}" target="_top" style="color: #00ffcc; text-decoration: none; cursor: pointer;">${{item.name}}</a>
                                                 </div>
                                                 <div class="sys-author">${{item.author}}</div>
                                             </td>
@@ -1052,37 +1013,29 @@ elif nav_choice == "我的":
                 st.error(f"策略对比表加载失败: {e}")
 
         with tab2:
-            st.markdown("#### 录入今日数据")
-            with st.form("manual_nav_input_tab"):
-                if strat_names:
-                    default_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
-                    selected_input_strat_name = st.selectbox("选择要录入的策略", strat_names, index=default_idx)
-                else:
-                    st.warning("您还没有创建任何策略，请先去策略管理新建。")
-                    selected_input_strat_name = None
-
-                input_date = st.date_input("日期", datetime.now())
-                input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
+            if not strat_names:
+                st.warning("请先在策略管理中新建一个策略。")
+            else:
+                st.markdown(f"#### 录入今日数据")
+                st.info(f"当前正在为策略 **{st.session_state.current_strategy_name}** 录入数据")
                 
-                target_bench_code = "SHSE.000300"
-                target_strat_id = st.session_state.current_strategy_id
-                
-                if selected_input_strat_name:
+                with st.form("manual_nav_input_tab"):
+                    input_date = st.date_input("日期", datetime.now())
+                    input_nav = st.number_input("今日总资产", min_value=0.01, step=1000.0, value=100000.0)
+                    
+                    # 找到当前策略对应的基准
+                    target_bench_code = "SHSE.000300"
                     for s in user_strats:
-                        if s[1] == selected_input_strat_name:
-                            target_strat_id = s[0]
+                        if s[1] == st.session_state.current_strategy_name:
                             target_bench_code = s[2]
                             break
-                            
-                current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
-                selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
-                final_bench_code = BENCHMARKS[selected_bench_name]
-                
-                if st.form_submit_button("提交数据", type="primary"):
-                    if not selected_input_strat_name:
-                        st.error("请先选择策略！")
-                    else:
-                        success, msg = insert_manual_nav(target_strat_id, final_bench_code, input_date, input_nav)
+                                
+                    current_bench_name = next((k for k, v in BENCHMARKS.items() if v == target_bench_code), "沪深300")
+                    selected_bench_name = st.selectbox("对比基准", list(BENCHMARKS.keys()), index=list(BENCHMARKS.keys()).index(current_bench_name))
+                    final_bench_code = BENCHMARKS[selected_bench_name]
+                    
+                    if st.form_submit_button("提交数据", type="primary"):
+                        success, msg = insert_manual_nav(st.session_state.current_strategy_id, final_bench_code, input_date, input_nav)
                         if success:
                             st.success(msg)
                             time.sleep(1)
@@ -1091,45 +1044,38 @@ elif nav_choice == "我的":
                             st.error(msg)
         
         with tab3:
-            st.markdown("#### 修改或删除历史数据")
-            if strat_names:
-                default_edit_idx = strat_names.index(st.session_state.current_strategy_name) if st.session_state.current_strategy_name in strat_names else 0
-                edit_strat_name = st.selectbox("选择要编辑的策略", strat_names, index=default_edit_idx)
-                target_edit_id = None
-                for s in user_strats:
-                    if s[1] == edit_strat_name:
-                        target_edit_id = s[0]
-                        break
-                
-                if target_edit_id:
-                    raw_df = load_raw_nav_data(target_edit_id)
-                    if raw_df.empty:
-                        st.info("该策略暂无历史数据")
-                    else:
-                        edit_df = raw_df.copy()
-                        edit_df = edit_df.rename(columns={"trade_date": "日期", "strategy_nav": "总资产", "benchmark_nav": "基准点位"})
-                        edit_df = edit_df[["日期", "总资产", "基准点位"]]
-                        
-                        edited_result = st.data_editor(edit_df, hide_index=True, use_container_width=True, num_rows="dynamic")
-                        
-                        if st.button("💾 保存修改并刷新", use_container_width=True, type="primary"):
-                            try:
-                                conn = get_db_connection()
-                                cursor = conn.cursor()
-                                cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (target_edit_id,))
-                                for _, row in edited_result.iterrows():
-                                    if pd.notna(row['日期']) and pd.notna(row['总资产']) and pd.notna(row['基准点位']):
-                                        cursor.execute(
-                                            "INSERT INTO dbo.nav_history (strategy_id, trade_date, strategy_nav, benchmark_nav) VALUES (%s, %s, %s, %s)",
-                                            (target_edit_id, str(row['日期']), float(row['总资产']), float(row['基准点位']))
-                                        )
-                                conn.commit()
-                                conn.close()
-                                load_raw_nav_data.clear()
-                                st.success("✅ 保存成功！")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"保存失败: {e}")
+            if not strat_names:
+                st.warning("请先在策略管理中新建一个策略。")
             else:
-                st.warning("您还没有创建任何策略。")
+                st.markdown(f"#### 修改或删除历史数据")
+                st.info(f"当前正在编辑策略 **{st.session_state.current_strategy_name}** 的数据")
+                
+                raw_df = load_raw_nav_data(st.session_state.current_strategy_id)
+                if raw_df.empty:
+                    st.info("该策略暂无历史数据")
+                else:
+                    edit_df = raw_df.copy()
+                    edit_df = edit_df.rename(columns={"trade_date": "日期", "strategy_nav": "总资产", "benchmark_nav": "基准点位"})
+                    edit_df = edit_df[["日期", "总资产", "基准点位"]]
+                    
+                    edited_result = st.data_editor(edit_df, hide_index=True, use_container_width=True, num_rows="dynamic")
+                    
+                    if st.button("💾 保存修改并刷新", use_container_width=True, type="primary"):
+                        try:
+                            conn = get_db_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (st.session_state.current_strategy_id,))
+                            for _, row in edited_result.iterrows():
+                                if pd.notna(row['日期']) and pd.notna(row['总资产']) and pd.notna(row['基准点位']):
+                                    cursor.execute(
+                                        "INSERT INTO dbo.nav_history (strategy_id, trade_date, strategy_nav, benchmark_nav) VALUES (%s, %s, %s, %s)",
+                                        (st.session_state.current_strategy_id, str(row['日期']), float(row['总资产']), float(row['基准点位']))
+                                    )
+                            conn.commit()
+                            conn.close()
+                            load_raw_nav_data.clear()
+                            st.success("✅ 保存成功！")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"保存失败: {e}")
