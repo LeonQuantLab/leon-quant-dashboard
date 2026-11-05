@@ -203,7 +203,6 @@ if "logged_in" not in st.session_state:
     st.session_state.username = "Leon量化工作室实盘"
     st.session_state.user_id = 1 
     st.session_state.current_strategy_id = 1
-    # 👇 修改了默认策略名称
     st.session_state.current_strategy_name = "大A趋势跟踪"
 
 if "auth_action" not in st.session_state:
@@ -273,7 +272,6 @@ with col_user:
                 st.session_state.username = "Leon量化工作室实盘"
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
-                # 👇 修改了退出登录后的默认策略名称
                 st.session_state.current_strategy_name = "大A趋势跟踪"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -390,7 +388,16 @@ def render_dashboard(strategy_id, strategy_name, author_name):
             x_range = [df['日期'].min(), df['日期'].max()]
         else:
             x_range = [df['日期'].min() - pd.Timedelta(days=1), df['日期'].max() + pd.Timedelta(days=1)]
-        fig.update_xaxes(range=x_range, showgrid=False, linecolor='#333', hoverformat='%Y-%m-%d')
+        
+        # 👇 修改了横坐标的刻度格式
+        fig.update_xaxes(
+            range=x_range, 
+            showgrid=False, 
+            linecolor='#333', 
+            hoverformat='%Y-%m-%d',
+            tickformat='%Y-%m',  # 强制使用数字格式，例如 2026-05
+            dtick="M1"           # 强制每个月显示一次刻度，避免日期挤在一起
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
@@ -455,7 +462,6 @@ if nav_choice == "首页":
                     break
             render_dashboard(st.session_state.current_strategy_id, st.session_state.current_strategy_name, st.session_state.username)
     else:
-        # 👇 修改了未登录演示时的策略名称
         render_dashboard(1, "大A趋势跟踪", "Leon量化工作室实盘")
 
 # ==========================================
