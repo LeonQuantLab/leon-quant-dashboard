@@ -215,7 +215,6 @@ if "logged_in" not in st.session_state:
 if "auth_action" not in st.session_state:
     st.session_state.auth_action = "none"
 
-# 👇 新增：绑定顶部导航栏的状态，用于跳转
 if "current_nav" not in st.session_state:
     st.session_state.current_nav = "首页"
 
@@ -251,6 +250,32 @@ st.markdown("""
         [data-testid="stHeaderActionElements"] {
             display: none !important;
         }
+
+        /* 👇 【核心修复】修复 Selectbox 下拉菜单白底灰字的问题 */
+        div[data-baseweb="select"] > div {
+            background-color: #1a1c24 !important;
+            border-color: #333 !important;
+            color: #e0e0e0 !important;
+        }
+        div[data-baseweb="popover"] div[data-baseweb="menu"] {
+            background-color: #1a1c24 !important;
+            border: 1px solid #333 !important;
+        }
+        div[data-baseweb="popover"] ul {
+            background-color: #1a1c24 !important;
+        }
+        div[data-baseweb="popover"] ul li {
+            color: #e0e0e0 !important;
+            background-color: #1a1c24 !important;
+        }
+        div[data-baseweb="popover"] ul li:hover {
+            background-color: #333333 !important;
+            color: #00ffcc !important;
+        }
+        div[data-baseweb="popover"] ul li[aria-selected="true"] {
+            background-color: #333333 !important;
+            color: #00ffcc !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -264,7 +289,6 @@ with col_logo:
 
 with col_nav:
     menu_options = ["首页", "排行榜", "加入我们", "我的"]
-    # 👇 使用 session_state 控制默认选中的选项
     nav_choice = option_menu(
         menu_title=None,
         options=menu_options,
@@ -278,7 +302,6 @@ with col_nav:
             "nav-link-selected": {"background-color": "#ff4b4b", "color": "white", "font-weight": "bold"},
         }
     )
-    # 👇 同步状态：如果用户手动点击了菜单，更新 session_state
     if nav_choice != st.session_state.current_nav:
         st.session_state.current_nav = nav_choice
 
@@ -296,7 +319,7 @@ with col_user:
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
                 st.session_state.current_strategy_name = "大A趋势跟踪"
-                st.session_state.current_nav = "首页" # 👈 退出登录后返回首页
+                st.session_state.current_nav = "首页"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -443,7 +466,6 @@ if st.session_state.auth_action == "login":
                 st.session_state.username = u
                 st.session_state.user_id = uid
                 st.session_state.auth_action = "none"
-                # 👇 登录成功也自动跳转到“我的”
                 st.session_state.current_nav = "我的" 
                 
                 strats = get_user_strategies(uid)
@@ -468,7 +490,6 @@ if st.session_state.auth_action == "login":
                     st.session_state.username = ru
                     st.session_state.user_id = uid
                     st.session_state.auth_action = "none"
-                    # 👇 注册成功后，自动将导航状态改为“我的”
                     st.session_state.current_nav = "我的" 
                     
                     st.success(msg)
