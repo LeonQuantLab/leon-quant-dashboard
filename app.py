@@ -200,7 +200,6 @@ def insert_manual_nav(strategy_id, bench_code, input_date, input_nav):
 # ==========================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    # 👇 去掉了“实盘”
     st.session_state.username = "Leon量化工作室"
     st.session_state.user_id = 1 
     st.session_state.current_strategy_id = 1
@@ -233,6 +232,15 @@ st.markdown("""
             height: 38px !important;
             border-radius: 5px !important;
             font-size: 14px !important;
+        }
+
+        /* 👇 【核心修复】隐藏标题旁边的锚点链接 🔗 */
+        h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+            display: none !important;
+        }
+        /* 针对 Streamlit 特定的锚点结构 */
+        [data-testid="stHeaderActionElements"] {
+            display: none !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -270,7 +278,6 @@ with col_user:
             st.markdown('<div class="top-nav-btn">', unsafe_allow_html=True)
             if st.button("退出登录", key="logout_btn", use_container_width=True):
                 st.session_state.logged_in = False
-                # 👇 去掉了“实盘”
                 st.session_state.username = "Leon量化工作室"
                 st.session_state.user_id = 1
                 st.session_state.current_strategy_id = 1
@@ -463,7 +470,6 @@ if nav_choice == "首页":
                     break
             render_dashboard(st.session_state.current_strategy_id, st.session_state.current_strategy_name, st.session_state.username)
     else:
-        # 👇 去掉了“实盘”
         render_dashboard(1, "大A趋势跟踪", "Leon量化工作室")
 
 # ==========================================
