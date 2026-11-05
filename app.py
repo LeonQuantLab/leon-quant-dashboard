@@ -87,7 +87,6 @@ def register_user(username, password):
             conn.close()
             return False, "该用户名已被注册，请换一个试试！"
 
-        # 👇 删除了自动插入默认策略的逻辑，注册后就是干干净净的
         cursor.execute("INSERT INTO dbo.users (username, password_hash) VALUES (%s, %s)", (username, pwd_hash))
         conn.commit()
         conn.close()
@@ -118,6 +117,19 @@ def create_new_strategy(user_id, strategy_name, bench_code):
         return True
     except Exception as e:
         st.error(f"创建策略失败: {e}")
+        return False
+
+def delete_strategy(strategy_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM dbo.nav_history WHERE strategy_id = %s", (strategy_id,))
+        cursor.execute("DELETE FROM dbo.strategies WHERE id = %s", (strategy_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"删除策略失败: {e}")
         return False
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -219,7 +231,7 @@ if "force_jump" not in st.session_state:
     st.session_state.force_jump = False
 
 # ==========================================
-# 4. 全局 CSS (绝对暴力强制暗黑)
+# 4. 全局 CSS (暴力覆盖深层组件)
 # ==========================================
 st.markdown("""
     <style>
@@ -237,88 +249,87 @@ st.markdown("""
         }
 
         /* ==========================================
-           直接针对 Streamlit 生成的组件强推样式
+           核心组件强推暗黑
            ========================================== */
-        
-        /* 针对所有下拉框 (Selectbox) */
         div[data-testid="stSelectbox"] > div,
         div[data-testid="stSelectbox"] > div > div,
-        div[data-testid="stSelectbox"] div[role="button"] {
-            background-color: #1e1e24 !important;
-            border: 1px solid #444 !important;
-            border-radius: 5px !important;
-        }
-        div[data-testid="stSelectbox"] * {
-            color: #ffffff !important;
-        }
-
-        /* 针对所有日期框 (DateInput) */
+        div[data-testid="stSelectbox"] div[role="button"],
         div[data-testid="stDateInput"] > div,
-        div[data-testid="stDateInput"] > div > div {
-            background-color: #1e1e24 !important;
-            border: 1px solid #444 !important;
-            border-radius: 5px !important;
-        }
-        div[data-testid="stDateInput"] input {
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-        }
-        div[data-testid="stDateInput"] svg {
-            fill: #ffffff !important;
-        }
-
-        /* 针对所有数字框 (NumberInput) */
+        div[data-testid="stDateInput"] > div > div,
         div[data-testid="stNumberInput"] > div,
-        div[data-testid="stNumberInput"] > div > div {
-            background-color: #1e1e24 !important;
-            border: 1px solid #444 !important;
-            border-radius: 5px !important;
-        }
-        div[data-testid="stNumberInput"] input {
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-        }
-        div[data-testid="stNumberInput"] button {
-            background-color: transparent !important;
-            color: #ffffff !important;
-            border-left: 1px solid #444 !important;
-        }
-        div[data-testid="stNumberInput"] button:hover {
-            background-color: #333 !important;
-            color: #00ffcc !important;
-        }
-
-        /* 针对所有文本输入框 (TextInput) */
+        div[data-testid="stNumberInput"] > div > div,
         div[data-testid="stTextInput"] > div,
         div[data-testid="stTextInput"] > div > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
             border-radius: 5px !important;
         }
-        div[data-testid="stTextInput"] input {
+        
+        div[data-testid="stSelectbox"] *, div[data-testid="stDateInput"] input, 
+        div[data-testid="stNumberInput"] input, div[data-testid="stTextInput"] input {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
         }
 
-        /* 下拉菜单和日历弹窗 (挂载在 body 下) */
+        div[data-testid="stDateInput"] svg, div[data-testid="stSelectbox"] svg, 
+        div[data-testid="stNumberInput"] svg {
+            fill: #ffffff !important;
+        }
+
+        div[data-testid="stNumberInput"] button {
+            background-color: transparent !important;
+            border-left: 1px solid #444 !important;
+            color: #ffffff !important;
+        }
+        div[data-testid="stNumberInput"] button:hover {
+            background-color: #333 !important;
+            color: #00ffcc !important;
+        }
+
+        /* ==========================================
+           【核弹级】日历弹窗和下拉菜单彻底暗黑化
+           ========================================== */
+        /* 1. 最外层包裹容器 */
+        div[data-baseweb="popover"],
         div[data-baseweb="popover"] > div,
-        div[data-baseweb="calendar"] {
+        div[data-baseweb="calendar"],
+        div[data-baseweb="calendar"] > div,
+        div[data-baseweb="calendar"] > div > div {
             background-color: #1e1e24 !important;
             border: 1px solid #444 !important;
+            border-radius: 5px !important;
         }
-        div[data-baseweb="calendar"] div, 
-        div[data-baseweb="popover"] li {
+
+        /* 2. 日历和下拉列表里的所有元素 */
+        div[data-baseweb="calendar"] *, 
+        div[data-baseweb="popover"] li,
+        div[data-baseweb="popover"] ul,
+        div[data-baseweb="popover"] div[role="listbox"] {
+            background-color: transparent !important;
+            color: #ffffff !important;
+        }
+
+        /* 3. 日历里的按钮 (月份切换、日期格子) */
+        div[data-baseweb="calendar"] button,
+        div[data-baseweb="calendar"] div[role="button"] {
             color: #ffffff !important;
             background-color: transparent !important;
+            border: none !important;
         }
-        div[data-baseweb="popover"] li:hover,
-        div[data-baseweb="calendar"] div[role="button"]:hover {
+        
+        /* 4. 悬停效果 */
+        div[data-baseweb="calendar"] button:hover,
+        div[data-baseweb="calendar"] div[role="button"]:hover,
+        div[data-baseweb="popover"] li:hover {
             background-color: #333333 !important;
             border-radius: 5px !important;
         }
+
+        /* 5. 选中的日期 */
         div[data-baseweb="calendar"] div[aria-selected="true"] {
             background-color: #ff4b4b !important;
             color: white !important;
+            border-radius: 5px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -520,7 +531,6 @@ if st.session_state.auth_action == "login":
                     st.session_state.current_strategy_id = strats[0][0]
                     st.session_state.current_strategy_name = strats[0][1]
                 else:
-                    # 如果没有策略，清空当前 ID
                     st.session_state.current_strategy_id = None
                     st.session_state.current_strategy_name = None
                     
@@ -814,6 +824,25 @@ elif nav_choice == "我的":
                         time.sleep(1)
                         st.rerun()
             
+            st.divider()
+            st.markdown("### 🗑️ 管理已有策略")
+            if strat_names:
+                to_delete_name = st.selectbox("选择要删除的策略", ["(不删除)"] + strat_names)
+                if to_delete_name != "(不删除)":
+                    if st.button(f"确认删除策略【{to_delete_name}】", type="secondary"):
+                        target_del_id = None
+                        for s in user_strats:
+                            if s[1] == to_delete_name:
+                                target_del_id = s[0]
+                                break
+                        if target_del_id:
+                            if delete_strategy(target_del_id):
+                                st.success("删除成功！")
+                                time.sleep(1)
+                                st.rerun()
+            else:
+                st.info("您目前没有创建任何策略。")
+
             st.divider()
             st.markdown("### 📊 我的策略表现对比")
             st.markdown("💡 *点击青绿色的策略名称可查看详情*。")
