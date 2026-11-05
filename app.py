@@ -510,11 +510,9 @@ elif nav_choice == "排行榜":
                 else:
                     # 默认按历史收益降序排序
                     rank_data = sorted(rank_data, key=lambda x: x['gain'], reverse=True)
-                    
-                    # 将 Python 数据转为 JSON 字符串，传给前端的 JS
                     json_data = json.dumps(rank_data)
                     
-                    # 构建纯前端 HTML + JS 代码，利用 components.html 隔离渲染
+                    # 构建纯前端 HTML + JS 代码
                     html_code = f"""
                     <!DOCTYPE html>
                     <html>
@@ -522,8 +520,10 @@ elif nav_choice == "排行榜":
                         <style>
                             body {{ margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }}
                             .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-                            .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; cursor: pointer; user-select: none; }}
-                            .custom-table th:hover {{ color: #fff; }}
+                            .custom-table th {{ text-align: left; padding: 12px; color: #a0a0a0; border-bottom: 1px solid #333; font-weight: normal; user-select: none; }}
+                            /* 只有加了 sortable 类的表头才显示手型和悬停颜色 */
+                            .custom-table th.sortable {{ cursor: pointer; }}
+                            .custom-table th.sortable:hover {{ color: #fff; }}
                             .custom-table td {{ padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; color: #e0e0e0; }}
                             .custom-table tr:hover {{ background-color: #1e1e24; }}
                             .positive {{ color: #00ffcc !important; font-weight: bold; }}
@@ -538,11 +538,12 @@ elif nav_choice == "排行榜":
                         <table class="custom-table">
                             <thead>
                                 <tr>
-                                    <th onclick="sortTable('name', false)">策略名称 <span class="arrow" id="arr-name">⇅</span></th>
-                                    <th onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
-                                    <th onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
-                                    <th onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
-                                    <th onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
+                                    <!-- 策略名称不加 onclick，不带排序箭头 -->
+                                    <th>策略名称</th>
+                                    <th class="sortable" onclick="sortTable('gain', true)">历史收益 <span class="arrow active" id="arr-gain">▼</span></th>
+                                    <th class="sortable" onclick="sortTable('annualized', true)">年化收益 <span class="arrow" id="arr-annualized">⇅</span></th>
+                                    <th class="sortable" onclick="sortTable('drawdown', true)">最大回撤 <span class="arrow" id="arr-drawdown">⇅</span></th>
+                                    <th class="sortable" onclick="sortTable('days', true)">运行天数 <span class="arrow" id="arr-days">⇅</span></th>
                                     <th>收益走势 (近30日)</th>
                                 </tr>
                             </thead>
@@ -553,7 +554,7 @@ elif nav_choice == "排行榜":
                         <script>
                             let data = {json_data};
                             let currentSortKey = 'gain';
-                            let isAscending = false; // 默认降序
+                            let isAscending = false;
 
                             function generateSparkline(sparkData, width=120, height=40) {{
                                 if (sparkData.length < 2) return "";
@@ -622,7 +623,7 @@ elif nav_choice == "排行榜":
                                     isAscending = !isAscending;
                                 }} else {{
                                     currentSortKey = key;
-                                    isAscending = false; // 默认新列降序
+                                    isAscending = false;
                                 }}
 
                                 let arrowEl = document.getElementById("arr-" + key);
@@ -648,38 +649,17 @@ elif nav_choice == "排行榜":
                     </html>
                     """
                     
-                    # 使用 iframe 组件渲染 HTML，彻底解决样式污染
                     components.html(html_code, height=600, scrolling=True)
 
         except Exception as e:
             st.error(f"排行榜加载失败: {e}")
 
     # ==========================================
-    # 右侧边栏区域
+    # 右侧边栏区域 (只保留加入社区)
     # ==========================================
     with col_side:
-        # 市场时间面板
         st.markdown("""
-        <div style="background-color: #1a1c24; border-radius: 8px; padding: 15px; margin-bottom: 20px; border: 1px solid #333;">
-            <h4 style="margin-top: 0; color: #fff; font-size:16px;">🌍 市场状态 (Market Hours)</h4>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #a0a0a0; font-size: 13px;">
-                <span>🇺🇸 纽约</span> <span>opens in 4h</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #a0a0a0; font-size: 13px;">
-                <span>🇬🇧 伦敦</span> <span>closes in 8h</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #a0a0a0; font-size: 13px;">
-                <span>🇯🇵 东京</span> <span>closes in 3h</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; color: #a0a0a0; font-size: 13px;">
-                <span>🇦🇺 悉尼</span> <span>opens in 11h</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 社区面板
-        st.markdown("""
-        <div style="background-color: #1a1c24; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #333;">
+        <div style="background-color: #1a1c24; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #333; margin-top: 10px;">
             <h4 style="margin-top: 0; color: #fff; font-size:16px;">加入社区</h4>
             <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 15px;">获取最新量化策略与实盘信号</p>
             <a href="#" target="_blank" style="text-decoration: none;">
